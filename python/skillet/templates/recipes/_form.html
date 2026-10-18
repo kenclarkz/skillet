@@ -1,0 +1,91 @@
+{% macro recipe_form(cookbook, options, recipe, action='/recipes/save') -%}
+<form method="post" action="{{ action }}" class="card card-pad" style="max-width:720px" id="recipe-form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+  {% if recipe %}<input type="hidden" name="id" value="{{ recipe.id }}">{% endif %}
+
+  {% if options and not recipe %}
+  <div class="field">
+    <label for="cookbook_id">Cookbook</label>
+    <select class="select" id="cookbook_id" name="cookbook_id" required>
+      {% for option in options %}
+      <option value="{{ option.id }}" {% if option.id == cookbook.id %}selected{% endif %}>{{ option.name }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <input type="hidden" name="cookbook_id" id="cookbook_id" value="{{ cookbook.id if cookbook else recipe.cookbook_id }}">
+  {% endif %}
+
+  <div class="field">
+    <label for="title">Title</label>
+    <input class="input" type="text" id="title" name="title" required maxlength="200" value="{{ recipe.title if recipe else '' }}">
+  </div>
+
+  <div class="field">
+    <label for="description">Description <span class="muted" style="font-weight:400">(optional)</span></label>
+    <textarea class="textarea" id="description" name="description" maxlength="1000" style="min-height:70px">{{ recipe.description if recipe and recipe.description else '' }}</textarea>
+  </div>
+
+  <div class="field" id="photo-field"
+       data-cookbook="{{ cookbook.id if cookbook else recipe.cookbook_id }}"
+       data-initial-path="{{ (recipe.photo_path or '') if recipe else '' }}"
+       data-initial-url="{{ public_photo_url(recipe.photo_url or recipe.photo_path) if recipe else '' }}">
+    <label>Photo</label>
+    <input type="hidden" name="photo_path" id="photo_path" value="{{ (recipe.photo_path or '') if recipe else '' }}">
+    <input class="input" type="file" id="photo_file" accept="image/*">
+    <div class="photo-preview" id="photo-preview" {% if not recipe or not (recipe.photo_url or recipe.photo_path) %}hidden{% endif %}>
+      <img id="photo-preview-img" alt="" src="{{ public_photo_url(recipe.photo_url or recipe.photo_path) if recipe and (recipe.photo_url or recipe.photo_path) else '' }}">
+    </div>
+    <p class="small muted" id="photo-status" style="margin:0.35rem 0 0"></p>
+  </div>
+
+  <div class="row" style="align-items:flex-start">
+    <div class="field" style="flex:1">
+      <label for="prep_minutes">Prep (min)</label>
+      <input class="input" type="number" id="prep_minutes" name="prep_minutes" min="0" step="1"
+             value="{{ recipe.prep_minutes if recipe and recipe.prep_minutes is not none else '' }}">
+    </div>
+    <div class="field" style="flex:1">
+      <label for="cook_minutes">Cook (min)</label>
+      <input class="input" type="number" id="cook_minutes" name="cook_minutes" min="0" step="1"
+             value="{{ recipe.cook_minutes if recipe and recipe.cook_minutes is not none else '' }}">
+    </div>
+    <div class="field" style="flex:1">
+      <label for="servings">Servings</label>
+      <input class="input" type="number" id="servings" name="servings" min="1" max="100" value="{{ recipe.servings if recipe else 4 }}">
+    </div>
+  </div>
+
+  <div class="field">
+    <label for="tags">Tags <span class="muted" style="font-weight:400">(comma-separated)</span></label>
+    <input class="input" type="text" id="tags" name="tags" maxlength="300"
+           value="{{ (recipe.tags or [])|join(', ') if recipe else '' }}" placeholder="weeknight, italian">
+  </div>
+
+  <div class="field">
+    <label for="ingredients_text">Ingredients <span class="muted" style="font-weight:400">(one per line)</span></label>
+    <textarea class="textarea" id="ingredients_text" name="ingredients_text" required
+              placeholder="1 1/2 cups all-purpose flour&#10;2 large eggs&#10;salt to taste"
+              style="min-height:140px">{% if recipe %}{{ ingredient_lines(recipe.ingredients or [])|join('\n') }}{% endif %}</textarea>
+    <p class="small muted" id="ingredient-count" style="margin:0.3rem 0 0"></p>
+  </div>
+
+  <div class="field">
+    <label for="instructions_text">Instructions <span class="muted" style="font-weight:400">(one step per line)</span></label>
+    <textarea class="textarea" id="instructions_text" name="instructions_text"
+              placeholder="Preheat the oven.&#10;Mix the dry ingredients."
+              style="min-height:140px">{% if recipe %}{{ (recipe.instructions or [])|join('\n') }}{% endif %}</textarea>
+  </div>
+
+  <div class="field">
+    <label for="source_url">Source link <span class="muted" style="font-weight:400">(optional)</span></label>
+    <input class="input" type="url" id="source_url" name="source_url"
+           value="{{ recipe.source_url if recipe and recipe.source_url else '' }}" placeholder="https://...">
+  </div>
+
+  <div class="row">
+    <button class="btn btn-primary" type="submit">{{ 'Save recipe' if recipe else 'Create recipe' }}</button>
+    <a class="btn btn-ghost" href="{{ '/recipes/' + recipe.id if recipe else '/cookbooks/' + (cookbook.id if cookbook else '') }}">Cancel</a>
+  </div>
+</form>
+{%- endmacro %}

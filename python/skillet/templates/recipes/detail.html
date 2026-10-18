@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}{{ recipe.title }} — Skillet{% endblock %}
+{% block content %}
+<div style="margin-bottom:0.9rem">
+  <a class="small muted" href="/cookbooks/{{ recipe.cookbook_id }}">← Back to cookbook</a>
+</div>
+
+<div class="two-col">
+  <div class="stack">
+    <div class="page-header">
+      <div>
+        <h1 style="margin-bottom:0.4rem">{{ recipe.title }}</h1>
+        <div class="row">
+          {% if recipe.prep_minutes %}<span class="badge">Prep {{ recipe.prep_minutes }} min</span>{% endif %}
+          {% if recipe.cook_minutes %}<span class="badge">Cook {{ recipe.cook_minutes }} min</span>{% endif %}
+          <span class="badge badge-honey">Serves {{ recipe.servings or 4 }}</span>
+          {% for tag in (recipe.tags or []) %}<span class="badge">{{ tag }}</span>{% endfor %}
+        </div>
+      </div>
+      {% if editable %}
+      <div class="actions">
+        <a class="btn btn-secondary btn-sm" href="/recipes/{{ recipe.id }}/edit">Edit</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% set photo = public_photo_url(recipe.photo_url or recipe.photo_path) %}
+    {% if photo %}
+    <div class="recipe-photo-box card" style="overflow:hidden">
+      <img src="{{ photo }}" alt="{{ recipe.title }}">
+    </div>
+    {% endif %}
+
+    {% if recipe.description %}
+    <p class="muted">{{ recipe.description }}</p>
+    {% endif %}
+
+    <section class="card card-pad">
+      <div class="spread" style="margin-bottom:0.5rem">
+        <h2 style="margin:0">Ingredients</h2>
+        <div class="scaler-controls no-print">
+          <button class="btn btn-secondary btn-sm" type="button" id="scale-down" aria-label="Fewer servings">−</button>
+          <span class="small"><strong id="servings-label">{{ recipe.servings or 4 }}</strong> servings</span>
+          <button class="btn btn-secondary btn-sm" type="button" id="scale-up" aria-label="More servings">+</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="scale-reset">Reset</button>
+        </div>
+      </div>
+      <div id="ingredient-list">
+        {% for ing in recipe.ingredients or [] %}
+        <div class="ingredient-row">
+          <span class="ingredient-qty">{{ qty_str(ing.qty) }} {{ ing.unit or '' }}</span>
+          <span>{{ ing.name }}{% if ing.note %} <span class="muted">, {{ ing.note }}</span>{% endif %}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% if recipe.instructions %}
+    <section class="card card-pad">
+      <h2>Instructions</h2>
+      <ol class="instructions-list">
+        {% for step in recipe.instructions %}<li>{{ step }}</li>{% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="stack">
+    {% if recipe.source_url %}
+    <div class="card card-pad">
+      <h3>Source</h3>
+      <a class="small" href="{{ recipe.source_url }}" target="_blank" rel="noopener">{{ recipe.source_url }}</a>
+    </div>
+    {% endif %}
+    {% if editable %}
+    <details class="form-details card card-pad">
+      <summary>🗑 Delete recipe</summary>
+      <p class="small muted">This permanently removes the recipe from the cookbook.</p>
+      <form method="post" action="/recipes/{{ recipe.id }}/delete"
+            onsubmit="return confirm('Delete this recipe?');">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="cookbook_id" value="{{ recipe.cookbook_id }}">
+        <button class="btn btn-danger btn-sm" type="submit">Delete recipe</button>
+      </form>
+    </details>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SKILLET_BASE_SERVINGS = {{ (recipe.servings or 4) | tojson }};
+  window.SKILLET_INGREDIENTS = {{ (recipe.ingredients or []) | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/scaler.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "recipes/_form.html" import recipe_form %}
+{% block title %}Import a recipe — Skillet{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Import a recipe</h1>
+</div>
+
+<div class="card card-pad" style="max-width:720px;margin-bottom:1.1rem">
+  <form id="import-form">
+    <div class="field">
+      <label for="import-url">Recipe URL</label>
+      <div class="row" style="flex-wrap:nowrap">
+        <input class="input" type="url" id="import-url" required placeholder="https://example.com/best-lasagna"
+               style="flex:1;min-width:0">
+        <button class="btn btn-primary" type="submit" id="import-submit">Fetch</button>
+      </div>
+    </div>
+    <p class="small muted" style="margin:0">We read JSON-LD, microdata, and meta tags from the page. If the site blocks us, you can still add the recipe by hand below.</p>
+  </form>
+  <div id="import-status" class="small" style="margin-top:0.5rem"></div>
+</div>
+
+<div id="import-result" {% if not draft %}hidden{% endif %}>
+  <h2>Editable draft</h2>
+  <p class="muted small" id="import-method-note" {% if not draft %}hidden{% endif %}></p>
+  {{ recipe_form(default_cookbook, cookbooks, None) }}
+</div>
+
+{% if not draft %}
+<div id="import-empty-note" class="muted small">Paste a URL above to get started, or <a href="/recipes/new?cookbook={{ default_cookbook.id }}">add a recipe manually</a>.</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>window.SKILLET_CSRF = {{ csrf_token | tojson }};</script>
+<script src="{{ url_for('static', filename='js/ingredient-count.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/photo.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/import.js') }}" defer></script>
+{% endblock %}

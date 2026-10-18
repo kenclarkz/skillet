@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Settings — Skillet{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Settings</h1>
+</div>
+<div class="stack" style="max-width:560px">
+  <div class="card card-pad">
+    <h2>Profile</h2>
+    <p class="muted small">{{ email }}</p>
+    <form method="post" action="/settings/profile">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="display_name">Display name</label>
+        <input class="input" type="text" id="display_name" name="display_name" required maxlength="80"
+               value="{{ profile.display_name if profile and profile.display_name else '' }}">
+      </div>
+      <button class="btn btn-primary" type="submit">Save name</button>
+    </form>
+  </div>
+
+  <div class="card card-pad">
+    <h2>Pantry staples</h2>
+    <p class="muted small">Items here are skipped by default when grocery lists are built.</p>
+    {% if pantry %}
+    <div class="settings-pantry" style="margin-bottom:0.9rem">
+      {% for item in pantry %}
+      <span class="chip">
+        {{ item.name }}
+        <form class="inline-form" method="post" action="/settings/pantry/remove">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="id" value="{{ item.id }}">
+          <button type="submit" title="Remove {{ item.name }}" aria-label="Remove {{ item.name }}">✕</button>
+        </form>
+      </span>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted small">No staples yet — add salt, pepper, oil, or anything you always have on hand.</p>
+    {% endif %}
+    <form method="post" action="/settings/pantry/add">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <div class="row" style="align-items:flex-end">
+        <div style="flex:1;min-width:180px">
+          <label for="pantry-name">Add a staple</label>
+          <input class="input" type="text" id="pantry-name" name="name" required maxlength="120" placeholder="olive oil">
+        </div>
+        <button class="btn btn-secondary" type="submit">Add</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Your family cookbook, always with you.</h1>
+  <p class="lede">Skillet keeps recipes, weekly meal votes, and automatic grocery lists in one shared place — with honest retailer links, pantry awareness, and QR-code guest voting.</p>
+  <div class="row" style="margin-top:1.1rem">
+    {% if current_user %}
+      <a class="btn btn-primary" href="/cookbooks">Open your cookbooks</a>
+      <a class="btn btn-secondary" href="/import">Import a recipe</a>
+    {% else %}
+      <a class="btn btn-primary" href="/signup">Create an account</a>
+      <a class="btn btn-secondary" href="/login">Sign in</a>
+    {% endif %}
+  </div>
+</section>
+
+<div class="grid-cards" style="margin-top:1.5rem">
+  <div class="card card-pad feature-card">
+    <div class="ico">📚</div>
+    <h3>Cookbooks &amp; members</h3>
+    <p class="muted small" style="margin:0">Private or shared cookbooks with editors and viewers, invite links, and roles.</p>
+  </div>
+  <div class="card card-pad feature-card">
+    <div class="ico">🗳️</div>
+    <h3>Weekly meal votes</h3>
+    <p class="muted small" style="margin:0">Build a ballot, share a QR code, and let everyone vote — no account needed.</p>
+  </div>
+  <div class="card card-pad feature-card">
+    <div class="ico">🛒</div>
+    <h3>Automatic groceries</h3>
+    <p class="muted small" style="margin:0">Quantities merge across recipes, pantry staples get skipped, and checked items survive rebuilds.</p>
+  </div>
+  <div class="card card-pad feature-card">
+    <div class="ico">🔗</div>
+    <h3>One-URL import</h3>
+    <p class="muted small" style="margin:0">Paste any recipe link; JSON-LD, microdata, and meta tags become an editable draft.</p>
+  </div>
+</div>
+
+<h2 style="margin-top:2rem">A peek at a week</h2>
+<div class="stack" style="max-width:520px">
+  <div class="card card-pad mock-card">
+    <strong>Taco Tuesday</strong> <span class="badge badge-olive">on the menu</span>
+    <p class="small muted" style="margin:0.25rem 0 0">👍 4 · 👎 0 — voted by the whole family</p>
+  </div>
+  <div class="card card-pad mock-card">
+    <strong>Chicken pot pie</strong>
+    <p class="small muted" style="margin:0.25rem 0 0">👍 2 · 👎 1</p>
+  </div>
+  <div class="card card-pad mock-card">
+    <strong>Miso ramen</strong>
+    <p class="small muted" style="margin:0.25rem 0 0">👍 3 · 👎 0</p>
+  </div>
+</div>
+{% endblock %}

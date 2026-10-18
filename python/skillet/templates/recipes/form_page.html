@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% from "recipes/_form.html" import recipe_form %}
+{% block title %}{{ 'Edit' if recipe else 'New' }} recipe — Skillet{% endblock %}
+{% block content %}
+<div style="margin-bottom:0.9rem">
+  {% if recipe %}
+  <a class="small muted" href="/recipes/{{ recipe.id }}">← {{ recipe.title }}</a>
+  {% else %}
+  <a class="small muted" href="/cookbooks/{{ cookbook.id }}">← {{ cookbook.name }}</a>
+  {% endif %}
+</div>
+<div class="page-header">
+  <h1>{{ 'Edit recipe' if recipe else 'New recipe' }}</h1>
+</div>
+{{ recipe_form(cookbook, options, recipe) }}
+{% endblock %}
+{% block scripts %}
+<script>
+  window.SKILLET_INGREDIENTS = {{ (recipe.ingredients if recipe else []) | tojson }};
+</script>
+<script src="{{ url_for('static', filename='js/ingredient-count.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/photo.js') }}" defer></script>
+{% endblock %}

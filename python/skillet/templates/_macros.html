@@ -1,0 +1,27 @@
+{% macro role_badge(role) -%}
+  {% if role == 'owner' %}<span class="badge badge-terracotta">owner</span>
+  {% elif role == 'editor' %}<span class="badge badge-olive">editor</span>
+  {% else %}<span class="badge">viewer</span>{% endif %}
+{%- endmacro %}
+
+{% macro status_badge(status) -%}
+  {% if status == 'open' %}<span class="badge badge-olive">voting open</span>
+  {% else %}<span class="badge">closed</span>{% endif %}
+{%- endmacro %}
+
+{% macro recipe_card(recipe) -%}
+  <a class="card clickable recipe-card" href="/recipes/{{ recipe.id }}">
+    <div class="thumb">
+      {% set photo = public_photo_url(recipe.photo_url or recipe.photo_path) %}
+      {% if photo %}<img src="{{ photo }}" alt="{{ recipe.title }}" loading="lazy">{% else %}🍽️{% endif %}
+    </div>
+    <div class="body">
+      {% set total = (recipe.prep_minutes or 0) + (recipe.cook_minutes or 0) %}
+      {% if total %}<span class="time-pill">{{ format_minutes(total) }}</span>{% endif %}
+      <h3>{{ recipe.title }}</h3>
+      {% if recipe.description %}<p class="desc">{{ recipe.description }}</p>{% endif %}
+      <p class="small muted" style="margin:0">Serves {{ recipe.servings or 4 }}</p>
+      {% if recipe.tags %}<div class="tag-row" style="margin-top:0.35rem">{% for tag in recipe.tags[:2] %}<span class="badge">{{ tag }}</span>{% endfor %}</div>{% endif %}
+    </div>
+  </a>
+{%- endmacro %}

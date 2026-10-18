@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Members — {{ cookbook.name }}{% endblock %}
+{% block content %}
+<div style="margin-bottom:0.9rem">
+  <a class="small muted" href="/cookbooks/{{ cookbook.id }}">← {{ cookbook.name }}</a>
+</div>
+<div class="page-header">
+  <h1>Members &amp; invites</h1>
+</div>
+
+<div class="two-col">
+  <div class="stack">
+    <div class="card">
+      <div class="card-pad" style="padding-bottom:0.4rem"><h3 style="margin:0">People</h3></div>
+      <div class="list-rows" style="padding:0 1.1rem 1rem">
+        {% set owner_id = cookbook.owner_id %}
+        {% for member in members %}
+        {% set is_self = member.user_id == current_user.id %}
+        <div class="spread" style="padding:0.55rem 0;border-bottom:1px solid var(--sand)">
+          <div>
+            <strong>{{ (member.profile.display_name if member.profile and member.profile.display_name else 'Member') }}{% if is_self %} (you){% endif %}</strong>
+            {% if member.user_id == owner_id %}<span class="badge badge-terracotta">owner</span>
+            {% else %}{{ m.role_badge(member.role) }}{% endif %}
+            <div class="small muted">Joined {{ format_date(member.created_at) }}</div>
+          </div>
+          {% if is_owner and member.user_id != owner_id %}
+          <div class="row">
+            <form class="inline-form" method="post" action="/cookbooks/{{ cookbook.id }}/members/update-role">
+              <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+              <input type="hidden" name="user_id" value="{{ member.user_id }}">
+              <select class="select" name="role" style="width:auto" onchange="this.form.submit()">
+                <option value="viewer" {% if member.role == 'viewer' %}selected{% endif %}>viewer</option>
+                <option value="editor" {% if member.role == 'editor' %}selected{% endif %}>editor</option>
+              </select>
+            </form>
+            {% if not is_self %}
+            <form class="inline-form" method="post" action="/cookbooks/{{ cookbook.id }}/members/remove"
+                  onsubmit="return confirm('Remove this member?');">
+              <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+              <input type="hidden" name="user_id" value="{{ member.user_id }}">
+              <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+            </form>
+            {% endif %}
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    {% if active_invites %}
+    <section>
+      <h2>Active invites</h2>
+      <div class="stack">
+        {% for invite in active_invites %}
+        {% set url = app_url + ('/vote/' if invite.kind == 'vote' else '/invite/') + invite.token %}
+        <div class="card card-pad">
+          <div class="spread">
+            <div class="row">
+              <span class="badge {% if invite.kind == 'vote' %}badge-honey{% else %}badge-olive{% endif %}">{{ invite.kind }}</span>
+              {% if invite.kind == 'member' and invite.role %}<span class="badge">{{ invite.role }}</span>{% endif %}
+              {% if invite.expires_at %}<span class="small muted">expires {{ format_date(invite.expires_at) }}</span>
+              {% else %}<span class="small muted">no expiry</span>{% endif %}
+            </div>
+            <form class="inline-form" method="post" action="/invites/{{ invite.id }}/revoke">
+              <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+              <input type="hidden" name="cookbook_id" value="{{ cookbook.id }}">
+              <button class="btn btn-ghost btn-sm" type="submit">Revoke</button>
+            </form>
+          </div>
+          <div class="copy-input" style="margin-top:0.6rem">
+            <input type="text" readonly value="{{ url }}" onfocus="this.select()" class="js-copy-input">
+            <button class="btn btn-secondary btn-sm js-copy" type="button">Copy link</button>
+            {% if invite.kind == 'vote' %}
+            <button class="btn btn-ghost btn-sm js-share" type="button" data-url="{{ url }}">Share</button>
+            {% endif %}
+          </div>
+          {% if invite.kind == 'vote' %}
+          <div style="margin-top:0.7rem">{{ qr_svg(url, 160)|safe }}</div>
+          {% else %}
+          <p class="small muted" style="margin:0.5rem 0 0">Recipients must be signed in to Skillet before opening a member invite.</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="stack">
+    {% if is_owner %}
+    <div class="card card-pad">
+      <h3>Invite someone</h3>
+      <form method="post" action="/invites/create">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="cookbook_id" value="{{ cookbook.id }}">
+        <input type="hidden" name="kind" value="member">
+        <div class="field">
+          <label for="role">Role</label>
+          <select class="select" id="role" name="role">
+            <option value="viewer" selected>viewer — can read recipes and plans</option>
+            <option value="editor">editor — can add recipes and build lists</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="expires_days">Expires after (days)</label>
+          <input class="input" type="number" id="expires_days" name="expires_days" value="14" min="0" max="365">
+        </div>
+        <button class="btn btn-primary btn-block" type="submit">Create invite link</button>
+      </form>
+    </div>
+    {% else %}
+    <div class="card card-pad">
+      <h3>Invites</h3>
+      <p class="small muted" style="margin:0">Only the cookbook owner can create and revoke invites.</p>
+    </div>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/copy.js') }}" defer></script>{% endblock %}

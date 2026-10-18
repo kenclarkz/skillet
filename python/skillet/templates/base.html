@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Skillet — your family cookbook{% endblock %}</title>
+  <meta name="description" content="A shared digital cookbook with recipe importing, weekly meal voting, and automatic grocery lists.">
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/skillet.css') }}">
+</head>
+<body>
+{% if not is_configured %}
+  {% include "setup.html" %}
+{% else %}
+  {% set hide_nav = request.path.startswith('/login') or request.path.startswith('/signup') or request.path.startswith('/vote/') or request.path.startswith('/invite/') %}
+  {% if not hide_nav %}
+  <header class="topnav no-print">
+    <div class="container topnav-inner">
+      <a class="brand" href="{{ '/' if current_user else '/' }}">skillet<span>.</span></a>
+      {% if current_user %}
+      <nav class="nav-links">
+        {% set path = request.path %}
+        <a class="nav-link {{ 'active' if path.startswith('/cookbooks') or path.startswith('/recipes') }}" href="/cookbooks"><span class="label">📚</span> <span class="label">Cookbooks</span></a>
+        <a class="nav-link {{ 'active' if path.startswith('/plans') }}" href="/plans"><span class="label">🗳️</span> <span class="label">Plans</span></a>
+        <a class="nav-link {{ 'active' if path.startswith('/import') }}" href="/import"><span class="label">🔗</span> <span class="label">Import</span></a>
+        <a class="nav-link {{ 'active' if path.startswith('/settings') }}" href="/settings"><span class="label">🧂</span> <span class="label">Settings</span></a>
+      </nav>
+      {% if display_name %}<span class="nav-user">{{ display_name }}</span>{% endif %}
+      <form class="inline-form" method="post" action="/logout">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="signout-btn" type="submit">Sign out</button>
+      </form>
+      {% else %}
+      <nav class="nav-links">
+        <a class="nav-link" href="/login">Sign in</a>
+        <a class="btn btn-primary btn-sm" href="/signup">Sign up</a>
+      </nav>
+      {% endif %}
+    </div>
+  </header>
+  {% endif %}
+  <main class="container page">
+    {% block content %}{% endblock %}
+  </main>
+  {% if current_user and not hide_nav %}
+  <nav class="bottomnav no-print">
+    <div class="bottomnav-inner">
+      {% set path = request.path %}
+      <a class="{{ 'active' if path.startswith('/cookbooks') or path.startswith('/recipes') }}" href="/cookbooks"><span class="ico">📚</span>Cookbooks</a>
+      <a class="{{ 'active' if path.startswith('/plans') }}" href="/plans"><span class="ico">🗳️</span>Plans</a>
+      <a class="{{ 'active' if path.startswith('/import') }}" href="/import"><span class="ico">🔗</span>Import</a>
+      <a class="{{ 'active' if path.startswith('/settings') }}" href="/settings"><span class="ico">🧂</span>Settings</a>
+    </div>
+  </nav>
+  {% endif %}
+  {% block scripts %}{% endblock %}
+{% endif %}
+</body>
+</html>
