@@ -112,13 +112,15 @@ Notes:
 ### PythonAnywhere (Flask port)
 
 No Node runtime? No problem — `python/` contains a complete **Flask** port of Skillet
-that runs on [PythonAnywhere](https://www.pythonanywhere.com) against the same Supabase
-project (same schema, RPCs, and storage bucket; only the web server changes).
+that runs on [PythonAnywhere](https://www.pythonanywhere.com) with its own **SQLite**
+database (SQLAlchemy + Alembic) and local photo storage. It is self-contained — no
+Supabase project needed — and can be migrated from one with `python/scripts/import_supabase.py`.
 
-1. Create the Supabase project and run `supabase/migrations/20261017000001_init.sql` (same as above).
-2. Upload/clone the `python/` folder to PythonAnywhere, make a virtualenv, `pip install -r requirements.txt`.
-3. Create `.env` from `python/.env.example` with your Supabase URL/key, `APP_URL`, and `SECRET_KEY`.
-4. Add a manual-configuration web app, point its WSGI file at `python/wsgi.py`, map `/static/` to `python/skillet/static`, pick the virtualenv, and reload.
+1. Upload/clone the `python/` folder to PythonAnywhere, make a virtualenv, `pip install -r requirements.txt`.
+2. Create `.env` from `python/.env.example` (`APP_URL` + `SECRET_KEY` are enough; the database lives in `~/skillet-data/`).
+3. Add a manual-configuration web app, point its WSGI file at `python/wsgi.py`, map `/static/` to `python/skillet/static`, pick the virtualenv, and reload. Migrations run automatically on first boot.
+4. (Optional) Import an existing Supabase project: `python scripts/import_supabase.py --download-photos`.
+5. (Optional) Enable auto-deploys by adding `PA_USERNAME` / `PA_API_TOKEN` / `PA_APP_NAME` repository secrets — `.github/workflows/deploy-pythonanywhere.yml` then tests, uploads, and reloads on every push to `main`.
 
 The full step-by-step guide — including troubleshooting — is in [`python/README.md`](python/README.md).
 
@@ -141,7 +143,7 @@ src/
   components/     # UI (recipe form/cards, voter, shop panel, QR, nav…)
   lib/            # auth, queries, ingredients, grocery/, import/, retailers/, supabase/
   proxy.ts        # middleware: session refresh + route guards
-python/           # Flask port for PythonAnywhere (same Supabase backend) — see python/README.md
+python/           # Flask port for PythonAnywhere (SQLite backend, own auth) — see python/README.md
 supabase/
   migrations/     # 20261017000001_init.sql (schema, RLS, RPCs, bucket)
 tests/            # vitest suites + PGlite migration harness

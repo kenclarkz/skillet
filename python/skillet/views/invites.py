@@ -5,7 +5,8 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, render_template, request
 
 from .. import auth
-from ..supabase import SupabaseError
+from ..errors import AppError
+from ..queries import cast_vote, get_vote_ballot, join_cookbook
 
 bp = Blueprint("invites", __name__)
 
@@ -16,10 +17,9 @@ VOTER_NAME_MAX = 60
 @bp.route("/invite/<token>")
 @auth.require_user
 def accept_invite(token):
-    client = auth.db()
     try:
-        cookbook_id = client.rpc("join_cookbook", {"p_invite_token": token})
-    except SupabaseError:
+        cookbook_id = join_cookbook(auth.user_id(), token)
+    except AppError:
         return render_template("invite/invalid.html")
     if not cookbook_id or not isinstance(cookbook_id, str):
         return render_template("invite/invalid.html")
@@ -37,15 +37,10 @@ def vote_ballot():
     if not token:
         return jsonify({"error": "Missing invite token."}), 400
     voter_key = (request.args.get("voter_key") or "").strip() or None
-    client = auth.anon_db()
     try:
-        ballot = client.rpc(
-            "get_vote_ballot",
-            {"p_invite_token": token, "p_voter_key": voter_key},
-            auth=False,
-        )
-    except SupabaseError as exc:
-        return jsonify({"error": exc.message}), 400
+        ballot = get_vote_ballot(token, voter_key)
+    except AppError as exc:
+        return jsonify({"error": exc.message}), exc.status
     return jsonify({"ballot": ballot or {}})
 
 
@@ -69,22 +64,18 @@ def vote_cast():
         return jsonify({"error": "Invalid voter key."}), 400
     if not voter_name or len(voter_name) > VOTER_NAME_MAX:
         return jsonify({"error": "Add your name before voting."}), 400
-    client = auth.anon_db()
     try:
-        client.rpc(
-            "cast_vote",
-            {
-                "p_plan_id": plan_id,
-                "p_recipe_id": recipe_id,
-                "p_voter_key": voter_key,
-                "p_voter_name": voter_name,
-                "p_value": value,
-                "p_invite_token": token or None,
-            },
-            auth=False,
+        cast_vote(
+            plan_id,
+            recipe_id,
+            voter_key,
+            voter_name,
+            value,
+            invite_token=token or None,
+            user_id=auth.user_id(),
         )
-    except SupabaseError as exc:
-        return jsonify({"error": exc.message}), 400
+    except AppError as exc:
+        return jsonify({"error": exc.message}), exc.status
     return jsonify({"ok": True})
 
 

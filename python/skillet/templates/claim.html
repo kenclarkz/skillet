@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Set your password — Skillet{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="card card-pad">
+    <h1 style="font-size:1.4rem">Welcome to Skillet</h1>
+    <p class="muted small">This account was imported from the old Supabase database. Choose a password to activate it.</p>
+    {% if error %}<div class="form-error">{{ error }}</div>{% endif %}
+    <form method="post" action="/claim/{{ token }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <div class="field">
+        <label for="password">New password</label>
+        <input class="input" type="password" id="password" name="password" required minlength="6" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Set password and sign in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

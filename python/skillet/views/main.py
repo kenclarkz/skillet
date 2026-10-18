@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, current_app, g, redirect, render_template, request
 
 from .. import auth
-from ..queries import get_pantry, get_profile
-from ..supabase import SupabaseError
+from ..db import db
+from ..errors import AppError
+from ..models import PantryItem, PasswordResetToken, User, utcnow
+from ..queries import ensure_default_cookbook, get_pantry, get_profile
 
 bp = Blueprint("main", __name__)
 
@@ -34,14 +36,19 @@ def login():
     next_url = safe_next(request.form.get("next"))
     if not email or not password:
         return render_template("login.html", next_url=next_url, error="Email and password are required."), 400
-    client = auth.make_client()
-    try:
-        payload = client.sign_in(email, password)
-    except SupabaseError as exc:
-        return render_template("login.html", next_url=next_url, error=exc.message), 400
-    auth.set_session_tokens(payload)
-    user = client.get_user()
-    session["user_id"] = user.get("id") if user else None
+    user = auth.find_user_by_email(email)
+    if user is None or (user.password_hash and not auth.verify_password(user, password)):
+        return render_template("login.html", next_url=next_url, error="Wrong email or password."), 400
+    if not user.password_hash:
+        return (
+            render_template(
+                "login.html",
+                next_url=next_url,
+                error="This account was imported from Supabase. Open your claim link to set a password first.",
+            ),
+            400,
+        )
+    auth.start_session(user)
     return redirect(next_url)
 
 
@@ -50,93 +57,68 @@ def signup():
     if request.method == "GET":
         if g.get("user"):
             return redirect("/cookbooks")
-        return render_template("signup.html", next_url=request.args.get("next", ""), error=None, notice=None)
+        return render_template("signup.html", next_url=request.args.get("next", ""), error=None)
 
     email = (request.form.get("email") or "").strip()
     password = request.form.get("password") or ""
     display_name = (request.form.get("display_name") or "").strip()
     next_url = safe_next(request.form.get("next"))
     if not email or not password:
+        return render_template("signup.html", next_url=next_url, error="Email and password are required."), 400
+    if len(password) < auth.MIN_PASSWORD_LENGTH:
         return (
-            render_template("signup.html", next_url=next_url, error="Email and password are required.", notice=None),
+            render_template("signup.html", next_url=next_url, error="Password must be at least 6 characters."),
             400,
         )
-    if len(password) < 6:
-        return (
-            render_template("signup.html", next_url=next_url, error="Password must be at least 6 characters.", notice=None),
-            400,
-        )
-    client = auth.make_client()
-    name = display_name or email.split("@")[0]
-    try:
-        payload = client.sign_up(email, password, {"display_name": name})
-    except SupabaseError as exc:
-        return render_template("signup.html", next_url=next_url, error=exc.message, notice=None), 400
-    if payload.get("access_token") and payload.get("refresh_token"):
-        auth.set_session_tokens(payload)
-        user = client.get_user()
-        session["user_id"] = user.get("id") if user else None
-        return redirect(next_url)
-    return (
-        render_template(
-            "signup.html",
-            next_url=next_url,
-            error=None,
-            notice="Check your email to confirm the account, then sign in.",
-        ),
-        200,
-    )
+    if auth.find_user_by_email(email):
+        return render_template("signup.html", next_url=next_url, error="That email is already registered."), 400
+    user = auth.create_user(email, password, display_name)
+    ensure_default_cookbook(user)
+    db.session.commit()
+    auth.start_session(user)
+    return redirect(next_url)
 
 
 @bp.route("/logout", methods=["POST"])
 def logout():
-    client = auth.db()
-    try:
-        client.sign_out()
-    except SupabaseError:
-        pass
     auth.clear_session()
     return redirect("/login")
 
 
-@bp.route("/auth/callback")
-def auth_callback():
-    """Landing page for email-confirmation redirects (PKCE code or implicit tokens)."""
-    return render_template("auth_callback.html", next_url=safe_next(request.args.get("next")))
+@bp.route("/claim/<token>", methods=["GET", "POST"])
+def claim_account(token):
+    """Set a first password on an account imported from Supabase."""
+    reset = db.session.query(PasswordResetToken).filter(PasswordResetToken.token == token).one_or_none()
+    valid = bool(
+        reset
+        and reset.used_at is None
+        and reset.expires_at > utcnow()
+    )
+    if not valid:
+        return render_template("claim.html", token=token, error="This claim link is invalid or has expired."), 400
 
+    if request.method == "GET":
+        return render_template("claim.html", token=token, error=None)
 
-@bp.route("/auth/session", methods=["POST"])
-def auth_session():
-    """Exchange a confirmation code or accept implicit tokens from the callback page."""
-    data = request.get_json(silent=True) or {}
-    code = data.get("code")
-    access = data.get("access_token")
-    refresh = data.get("refresh_token")
-    next_url = safe_next(data.get("next"))
-    client = auth.make_client()
-    try:
-        if code:
-            payload = client.exchange_code_for_session(code, data.get("code_verifier"))
-        elif access and refresh:
-            payload = client.set_session(access, refresh)
-            payload = {"access_token": access, "refresh_token": refresh}
-        else:
-            return jsonify({"error": "Missing confirmation code."}), 400
-        auth.set_session_tokens(payload)
-        user = client.get_user()
-        session["user_id"] = user.get("id") if user else None
-    except SupabaseError as exc:
-        return jsonify({"error": exc.message}), 400
-    return jsonify({"ok": True, "next": next_url})
+    password = request.form.get("password") or ""
+    if len(password) < auth.MIN_PASSWORD_LENGTH:
+        return render_template("claim.html", token=token, error="Password must be at least 6 characters."), 400
+    user = db.session.get(User, reset.user_id)
+    if user is None:
+        return render_template("claim.html", token=token, error="Account no longer exists."), 400
+    auth.change_password(user, password)
+    reset.used_at = utcnow()
+    db.session.commit()
+    auth.start_session(user)
+    return redirect("/settings")
 
 
 @bp.route("/settings", methods=["GET"])
 @auth.require_user
 def settings():
-    client = auth.db()
     uid = auth.user_id()
-    profile = get_profile(client, uid)
-    pantry = get_pantry(client, uid)
+    profile = get_profile(uid)
+    pantry = get_pantry(uid)
     user = g.get("user") or {}
     return render_template("settings.html", profile=profile, pantry=pantry, email=user.get("email"))
 
@@ -144,12 +126,13 @@ def settings():
 @bp.route("/settings/profile", methods=["POST"])
 @auth.require_user
 def update_profile():
-    client = auth.db()
     uid = auth.user_id()
     display_name = (request.form.get("display_name") or "").strip()
     if not display_name:
-        raise SupabaseError("Display name is required.")
-    client.table("profiles").upsert({"id": uid, "display_name": display_name}, on_conflict="id").execute()
+        raise AppError("Display name is required.")
+    user = db.session.get(User, uid)
+    user.display_name = display_name[:80]
+    db.session.commit()
     return redirect("/settings")
 
 
@@ -158,29 +141,31 @@ def update_profile():
 def add_pantry():
     from ..queries import normalize_item_name
 
-    client = auth.db()
     uid = auth.user_id()
     name = (request.form.get("name") or "").strip()
     if not name:
-        raise SupabaseError("Give the pantry item a name.")
-    (
-        client.table("pantry_items")
-        .upsert(
-            {"user_id": uid, "name": name, "normalized_name": normalize_item_name(name)},
-            on_conflict="user_id,normalized_name",
-        )
-        .execute()
+        raise AppError("Give the pantry item a name.")
+    normalized = normalize_item_name(name)
+    existing = (
+        db.session.query(PantryItem)
+        .filter(PantryItem.user_id == uid, PantryItem.normalized_name == normalized)
+        .one_or_none()
     )
+    if existing is None:
+        db.session.add(PantryItem(user_id=uid, name=name, normalized_name=normalized))
+    else:
+        existing.name = name
+    db.session.commit()
     return redirect("/settings")
 
 
 @bp.route("/settings/pantry/remove", methods=["POST"])
 @auth.require_user
 def remove_pantry():
-    client = auth.db()
     uid = auth.user_id()
     item_id = request.form.get("id") or ""
     if not item_id:
-        raise SupabaseError("Missing pantry item.")
-    client.table("pantry_items").delete().eq("id", item_id).eq("user_id", uid).execute()
+        raise AppError("Missing pantry item.")
+    db.session.query(PantryItem).filter(PantryItem.id == item_id, PantryItem.user_id == uid).delete()
+    db.session.commit()
     return redirect("/settings")

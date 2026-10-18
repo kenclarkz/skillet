@@ -1,4 +1,4 @@
-// Photo upload: browser → Flask → Supabase Storage (user JWT, RLS enforced).
+// Photo upload: browser → Flask → local disk (served back via /media/...).
 (function () {
   var field = document.getElementById('photo-field');
   if (!field) return;

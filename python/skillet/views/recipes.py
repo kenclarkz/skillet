@@ -9,18 +9,21 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, redirect, render_template, request
 
 from .. import auth
+from ..db import db
+from ..errors import AppError
 from ..ingredients import parse_ingredient_text
+from ..models import Recipe
 from ..queries import (
     editable_cookbooks,
     get_cookbook,
     get_recipe,
     get_role,
     int_or_none,
-    list_cookbooks,
     parse_instructions,
     parse_tags,
+    require_cookbook_role,
+    require_visible_cookbook,
 )
-from ..supabase import SupabaseError
 
 bp = Blueprint("recipes", __name__)
 
@@ -36,9 +39,8 @@ ALLOWED_IMAGE_TYPES = {
 @bp.route("/recipes/new")
 @auth.require_user
 def recipe_new():
-    client = auth.db()
     uid = auth.user_id()
-    options = editable_cookbooks(client, uid)
+    options = editable_cookbooks(uid)
     if not options:
         return render_template("recipes/none_available.html")
     requested = request.args.get("cookbook")
@@ -53,11 +55,11 @@ def recipe_new():
 @bp.route("/recipes/<recipe_id>")
 @auth.require_user
 def recipe_detail(recipe_id):
-    client = auth.db()
-    recipe = get_recipe(client, recipe_id)
+    uid = auth.user_id()
+    recipe = get_recipe(uid, recipe_id)
     if not recipe:
         return render_template("not_found.html"), 404
-    role = get_role(client, recipe["cookbook_id"])
+    role = get_role(uid, recipe["cookbook_id"])
     ingredients = recipe.get("ingredients") or []
     if ingredients and isinstance(ingredients[0], str):
         ingredients = parse_ingredient_text("\n".join(ingredients))
@@ -73,14 +75,14 @@ def recipe_detail(recipe_id):
 @bp.route("/recipes/<recipe_id>/edit")
 @auth.require_user
 def recipe_edit(recipe_id):
-    client = auth.db()
-    recipe = get_recipe(client, recipe_id)
+    uid = auth.user_id()
+    recipe = get_recipe(uid, recipe_id)
     if not recipe:
         return render_template("not_found.html"), 404
-    role = get_role(client, recipe["cookbook_id"])
+    role = get_role(uid, recipe["cookbook_id"])
     if role not in ("owner", "editor"):
         return redirect(f"/recipes/{recipe_id}")
-    cookbook = get_cookbook(client, recipe["cookbook_id"])
+    cookbook = get_cookbook(uid, recipe["cookbook_id"])
     ingredients = recipe.get("ingredients") or []
     if ingredients and isinstance(ingredients[0], str):
         ingredients = parse_ingredient_text("\n".join(ingredients))
@@ -91,7 +93,6 @@ def recipe_edit(recipe_id):
 @bp.route("/recipes/save", methods=["POST"])
 @auth.require_user
 def save_recipe():
-    client = auth.db()
     uid = auth.user_id()
     recipe_id = (request.form.get("id") or "").strip()
     cookbook_id = (request.form.get("cookbook_id") or "").strip()
@@ -111,57 +112,76 @@ def save_recipe():
     instructions = parse_instructions(request.form.get("instructions_text") or "")
 
     if not title:
-        raise SupabaseError("Give the recipe a title.")
+        raise AppError("Give the recipe a title.")
     if not ingredients:
-        raise SupabaseError("Add at least one ingredient.")
-
-    payload = {
-        "title": title,
-        "description": description,
-        "photo_path": photo_path,
-        "source_url": source_url,
-        "prep_minutes": prep_minutes,
-        "cook_minutes": cook_minutes,
-        "servings": servings,
-        "tags": tags,
-        "ingredients": ingredients,
-        "instructions": instructions,
-    }
+        raise AppError("Add at least one ingredient.")
 
     if recipe_id:
-        client.table("recipes").update(payload).eq("id", recipe_id).execute()
+        recipe = db.session.get(Recipe, recipe_id)
+        if recipe is None:
+            raise AppError("Recipe not found.", 404)
+        require_cookbook_role(uid, recipe.cookbook_id)
+        recipe.title = title[:200]
+        recipe.description = description
+        recipe.photo_path = photo_path
+        recipe.source_url = source_url
+        recipe.prep_minutes = prep_minutes
+        recipe.cook_minutes = cook_minutes
+        recipe.servings = servings
+        recipe.tags = tags
+        recipe.ingredients = ingredients
+        recipe.instructions = instructions
+        db.session.commit()
         return redirect(f"/recipes/{recipe_id}")
+
     if not cookbook_id:
-        raise SupabaseError("Choose a cookbook.")
-    created = (
-        client.table("recipes")
-        .insert({**payload, "cookbook_id": cookbook_id, "created_by": uid})
-        .select("id")
-        .single()
-        .execute()
+        raise AppError("Choose a cookbook.")
+    require_cookbook_role(uid, cookbook_id)
+    recipe = Recipe(
+        cookbook_id=cookbook_id,
+        created_by=uid,
+        title=title[:200],
+        description=description,
+        photo_path=photo_path,
+        source_url=source_url,
+        prep_minutes=prep_minutes,
+        cook_minutes=cook_minutes,
+        servings=servings,
+        tags=tags,
+        ingredients=ingredients,
+        instructions=instructions,
     )
-    return redirect(f"/recipes/{created['id']}")
+    db.session.add(recipe)
+    db.session.commit()
+    return redirect(f"/recipes/{recipe.id}")
 
 
 @bp.route("/recipes/<recipe_id>/delete", methods=["POST"])
 @auth.require_user
 def delete_recipe(recipe_id):
-    client = auth.db()
-    recipe = get_recipe(client, recipe_id)
-    cookbook_id = request.form.get("cookbook_id") or (recipe or {}).get("cookbook_id") or ""
-    client.table("recipes").delete().eq("id", recipe_id).execute()
+    uid = auth.user_id()
+    recipe = db.session.get(Recipe, recipe_id)
+    if recipe is None:
+        cookbook_id = request.form.get("cookbook_id") or ""
+        return redirect(f"/cookbooks/{cookbook_id}" if cookbook_id else "/cookbooks")
+    require_cookbook_role(uid, recipe.cookbook_id)
+    cookbook_id = request.form.get("cookbook_id") or recipe.cookbook_id
+    db.session.delete(recipe)
+    db.session.commit()
     return redirect(f"/cookbooks/{cookbook_id}")
 
 
 @bp.route("/api/photos", methods=["POST"])
 @auth.require_user
 def upload_photo():
-    """Server-side photo upload to Supabase Storage (RLS enforced with user JWT)."""
+    """Server-side photo upload into the local uploads directory."""
     cfg = current_app.config["SKILLET"]
+    uid = auth.user_id()
     cookbook_id = (request.form.get("cookbook_id") or "").strip()
     file = request.files.get("file")
     if not cookbook_id:
         return jsonify({"error": "Missing cookbook."}), 400
+    require_cookbook_role(uid, cookbook_id)
     if file is None or not file.filename:
         return jsonify({"error": "Choose an image first."}), 400
     content = file.read(cfg.MAX_PHOTO_BYTES + 1)
@@ -173,9 +193,7 @@ def upload_photo():
         return jsonify({"error": "Upload a JPEG, PNG, GIF, WebP, or AVIF image."}), 400
     safe_name = re.sub(r"[^a-zA-Z0-9._-]", "-", Path(file.filename).name)[-60:]
     path = f"{cookbook_id}/{uuid.uuid4()}-{safe_name or 'photo'}{extension}"
-    client = auth.db()
-    try:
-        client.upload(cfg.PHOTO_BUCKET, path, content, f"{content_type}; charset=utf-8".split(";")[0])
-    except SupabaseError as exc:
-        return jsonify({"error": exc.message}), 400
+    destination = cfg.UPLOAD_DIR / path
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_bytes(content)
     return jsonify({"path": path, "url": cfg.public_photo_url(path)})

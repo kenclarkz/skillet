@@ -1,0 +1,50 @@
+name: Deploy to PythonAnywhere
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "python/**"
+      - ".github/workflows/deploy-pythonanywhere.yml"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+      - name: Run tests
+        run: pytest -q
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      PA_USERNAME: ${{ secrets.PA_USERNAME }}
+      PA_API_TOKEN: ${{ secrets.PA_API_TOKEN }}
+      PA_APP_NAME: ${{ secrets.PA_APP_NAME }}
+      PA_HOST: ${{ secrets.PA_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package app
+        run: |
+          tar -czf "skillet-${GITHUB_SHA}.tar.gz" \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.pytest_cache' \
+            --exclude 'instance' \
+            --exclude 'uploads' \
+            --exclude '*.db' \
+            --exclude '.env' \
+            -C python .
+      - name: Deploy to PythonAnywhere
+        run: bash python/scripts/deploy_pythonanywhere.sh "skillet-${GITHUB_SHA}.tar.gz" "${GITHUB_SHA}"

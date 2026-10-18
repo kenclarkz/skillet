@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% import "_macros.html" as m %}
+{% import "_macros.html" as m with context %}
 {% block title %}{{ plan.title or format_week(plan.week_start) }} — Skillet{% endblock %}
 {% block content %}
 <div style="margin-bottom:0.9rem">
