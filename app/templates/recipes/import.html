@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card import-card">
+    <h2>Import a recipe from a URL</h2>
+    <p class="text-muted">Paste a link to any recipe. We'll pull out the title, photo, times,
+    ingredients, and steps so you can review and save it. JSON-LD, microdata, and Open Graph
+    pages are all supported.</p>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            {{ form.url.label }}
+            {{ form.url(class_='input', placeholder='https://example.com/best-lasagna') }}
+        </div>
+        {{ form.submit(class_='btn btn-primary') }}
+        <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+    <p class="import-note">The fetched page must be public. Private network addresses are blocked
+    for safety. You can edit everything before saving.</p>
+</div>
+{% endblock %}

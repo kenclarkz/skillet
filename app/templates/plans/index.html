@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>Meal plans</h1>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary">New plan</a>
+</div>
+{% if plans %}
+<div class="grid">
+    {% for plan in plans %}
+    <a href="{{ url_for('plans.view', plan_id=plan.id) }}" class="card">
+        <h3>{{ plan.title or 'Week plan' }}</h3>
+        <p>Week start: {{ plan.week_start }}</p>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    <h3>No meal plans yet</h3>
+    <p>Create a plan to assign recipes to days.</p>
+    <a href="{{ url_for('plans.new') }}" class="btn btn-primary">New plan</a>
+</div>
+{% endif %}
+{% endblock %}

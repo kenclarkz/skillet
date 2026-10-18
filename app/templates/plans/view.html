@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>{{ plan.title or 'Meal plan' }}</h1>
+        <p>Week starting {{ plan.week_start }}</p>
+    </div>
+    <a href="{{ url_for('grocery.list', plan_id=plan.id) }}" class="btn btn-primary">View grocery list</a>
+</div>
+
+<div class="card">
+    <h3>Assign recipes</h3>
+    <form method="POST" action="{{ url_for('plans.assign', plan_id=plan.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Recipe</label>
+                <select name="recipe_id" class="input">
+                    {% for r in recipes %}
+                    <option value="{{ r.id }}">{{ r.title }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Day</label>
+                <select name="day_of_week" class="input">
+                    {% for d in range(7) %}
+                    <option value="{{ d }}">{{ days[d] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Assign</button>
+    </form>
+</div>
+
+<div class="grid mt-3">
+    {% for d in range(7) %}
+    <div class="card">
+        <div class="day-header">
+            <strong>{{ days[d] }}</strong>
+            {% if entries.get(d) %}
+            <form method="POST" action="{{ url_for('plans.clear', plan_id=plan.id, day=d) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-ghost">Clear</button>
+            </form>
+            {% endif %}
+        </div>
+        {% if entries.get(d) %}
+            {% set pe = entries.get(d) %}
+            <p><a href="{{ url_for('recipes.view', recipe_id=pe.recipe_id) }}">{{ pe.recipe.title if pe.recipe else pe.recipe_id }}</a></p>
+        {% else %}
+            <p class="text-muted">Unassigned</p>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

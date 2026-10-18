@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <h1>My recipes</h1>
+    <div class="header-actions">
+        <a href="{{ url_for('recipes.import_url') }}" class="btn btn-secondary">Import from URL</a>
+        <a href="{{ url_for('recipes.new') }}" class="btn btn-primary">Add recipe</a>
+    </div>
+</div>
+
+{% if recipes %}
+<div class="horizontal-scroll">
+    {% for r in recipes %}
+    {% include 'recipes/card.html' %}
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+    <h3>No recipes yet</h3>
+    <p>Add your first recipe, or paste a link and we'll fill it in for you.</p>
+    <div class="hero-actions" style="justify-content:center">
+        <a href="{{ url_for('recipes.import_url') }}" class="btn btn-secondary">Import from URL</a>
+        <a href="{{ url_for('recipes.new') }}" class="btn btn-primary">Add recipe</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

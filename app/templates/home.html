@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+    <span class="badge">For families who cook together</span>
+    <h1>Every family recipe, <span class="text-terracotta">one warm cookbook.</span></h1>
+    <p>Skillet keeps your dishes, photos, and notes in one place — then turns the meals you plan into a ready-to-shop grocery list.</p>
+    <div class="hero-actions">
+        {% if current_user.is_authenticated %}
+        <a href="{{ url_for('recipes.index') }}" class="btn btn-primary">My recipes</a>
+        <a href="{{ url_for('plans.index') }}" class="btn btn-secondary">Meal plans</a>
+        {% else %}
+        <a href="{{ url_for('auth.signup') }}" class="btn btn-primary">Start your cookbook</a>
+        <a href="{{ url_for('auth.login') }}" class="btn btn-secondary">I have an account</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="features">
+    <div class="feature-card">
+        <div class="feature-icon">📖</div>
+        <h3>A visual cookbook</h3>
+        <p>Horizontal scrollable recipe cards with appetizing photos.</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🗓️</div>
+        <h3>Weekly meal planner</h3>
+        <p>Assign recipes to days and build a smart grocery list.</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">🛒</div>
+        <h3>Groceries that add up</h3>
+        <p>Ingredients combine across meals, minus what's already in your pantry.</p>
+    </div>
+    <div class="feature-card">
+        <div class="feature-icon">📱</div>
+        <h3>Responsive design</h3>
+        <p>Looks great on mobile and desktop.</p>
+    </div>
+</section>
+{% endblock %}

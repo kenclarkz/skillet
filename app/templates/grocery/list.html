@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Grocery list</h1>
+        <p>{{ plan.title or 'Meal plan' }} · Week starting {{ plan.week_start }}</p>
+    </div>
+    <a href="{{ url_for('plans.view', plan_id=plan.id) }}" class="btn btn-secondary">Back to plan</a>
+</div>
+
+<div class="card">
+    {% if items %}
+    <table class="table">
+        <thead>
+            <tr><th>Item</th><th>Qty</th><th>Unit</th><th>Source</th></tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="{% if item.in_pantry %}muted{% endif %}">
+                <td>{{ item.name }} {% if item.in_pantry %}<span class="tag">pantry</span>{% endif %}</td>
+                <td>{% if item.qty is not none %}{{ item.qty }}{% elif item.missing_qty %}—{% endif %}</td>
+                <td>{{ item.unit }}</td>
+                <td>{% for r in item.recipes %}{{ r }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="text-muted">No ingredients found. Assign recipes to days first.</p>
+    {% endif %}
+</div>
+{% endblock %}

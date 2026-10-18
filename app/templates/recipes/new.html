@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    {% if imported %}
+    <div class="import-banner">Imported from <a href="{{ form.source_url.data }}" target="_blank" rel="noopener">the source page</a>. Review everything, then save.</div>
+    {% endif %}
+    <h2>{% if edit %}Edit recipe{% else %}New recipe{% endif %}</h2>
+    <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+        <div class="form-row">
+            <div class="form-group">
+                {{ form.title.label }}
+                {{ form.title(class_='input') }}
+            </div>
+            <div class="form-group">
+                {{ form.servings.label }}
+                {{ form.servings(class_='input') }}
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                {{ form.prep_minutes.label }}
+                {{ form.prep_minutes(class_='input') }}
+            </div>
+            <div class="form-group">
+                {{ form.cook_minutes.label }}
+                {{ form.cook_minutes(class_='input') }}
+            </div>
+        </div>
+        <div class="form-group">
+            {{ form.tags.label }}
+            {{ form.tags(class_='input', placeholder='e.g. dinner, quick, vegetarian') }}
+        </div>
+        <div class="form-group">
+            {{ form.ingredients.label }}
+            {{ form.ingredients(class_='textarea', rows=8, placeholder='e.g. 2 cups all-purpose flour') }}
+            <small>One ingredient per line</small>
+        </div>
+        <div class="form-group">
+            {{ form.description.label }}
+            {{ form.description(class_='textarea') }}
+        </div>
+        <div class="form-group">
+            {{ form.instructions.label }}
+            {{ form.instructions(class_='textarea', rows=8, placeholder='One step per line') }}
+        </div>
+        <div class="form-group">
+            {{ form.photo.label }}
+            {{ form.photo(class_='input') }}
+            {% if edit and recipe.photo_path %}
+            <small>Current: {{ recipe.photo_path }}</small>
+            {% endif %}
+        </div>
+        <div class="form-group">
+            {{ form.source_url.label }}
+            {{ form.source_url(class_='input') }}
+        </div>
+        {{ form.photo_url() }}
+        {{ form.submit(class_='btn btn-primary') }}
+        <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

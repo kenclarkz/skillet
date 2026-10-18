@@ -1,0 +1,29 @@
+{# Uniform recipe card — identical structure for every recipe. #}
+<a href="{{ url_for('recipes.view', recipe_id=r.id) }}" class="recipe-card">
+    <div class="recipe-card-image">
+        {% if r.photo_path %}
+        <img src="{{ url_for('uploaded_file', filename=r.photo_path) }}" alt="{{ r.title }}" loading="lazy">
+        {% else %}
+        <div class="recipe-card-fallback">
+            <span class="recipe-card-monogram">{{ r.title[:1]|upper }}</span>
+        </div>
+        {% endif %}
+        {% set total = (r.prep_minutes or 0) + (r.cook_minutes or 0) %}
+        {% if total > 0 %}
+        <span class="time-badge">{{ total }} min</span>
+        {% endif %}
+    </div>
+    <div class="recipe-card-body">
+        <p class="recipe-card-title">{{ r.title }}</p>
+        <div class="recipe-card-meta">
+            <span class="meta-chip">Serves {{ r.servings }}</span>
+            {% if r.tags %}
+                {% for tag in r.tags.split(',')[:2] %}
+                    {% if tag.strip() %}
+                    <span class="tag">{{ tag.strip() }}</span>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</a>

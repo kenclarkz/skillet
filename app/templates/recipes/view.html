@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="recipe-header">
+    <h1>{{ recipe.title }}</h1>
+    <div class="actions">
+        <a href="{{ url_for('recipes.edit', recipe_id=recipe.id) }}" class="btn btn-secondary">Edit</a>
+        <form method="POST" action="{{ url_for('recipes.delete', recipe_id=recipe.id) }}" style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this recipe?')">Delete</button>
+        </form>
+    </div>
+</div>
+
+<div class="recipe-layout">
+    <div class="recipe-photo">
+        {% if recipe.photo_path %}
+        <img src="{{ url_for('uploaded_file', filename=recipe.photo_path) }}" alt="{{ recipe.title }}">
+        {% else %}
+        <div class="placeholder">No photo</div>
+        {% endif %}
+    </div>
+    <div class="recipe-meta">
+        <div class="meta-item"><strong>Serves:</strong> {{ recipe.servings }}</div>
+        {% if recipe.prep_minutes %}<div class="meta-item"><strong>Prep:</strong> {{ recipe.prep_minutes }} min</div>{% endif %}
+        {% if recipe.cook_minutes %}<div class="meta-item"><strong>Cook:</strong> {{ recipe.cook_minutes }} min</div>{% endif %}
+        {% if recipe.tags %}<div class="meta-item"><strong>Tags:</strong> {{ recipe.tags }}</div>{% endif %}
+        {% if recipe.source_url %}<div class="meta-item"><strong>Source:</strong> <a href="{{ recipe.source_url }}" target="_blank">Link</a></div>{% endif %}
+    </div>
+</div>
+
+{% if recipe.description %}
+<div class="card mt-3">
+    <p>{{ recipe.description }}</p>
+</div>
+{% endif %}
+
+<div class="card mt-3">
+    <h3>Instructions</h3>
+    <ol>
+        {% for step in instructions %}
+        <li>{{ step }}</li>
+        {% endfor %}
+    </ol>
+</div>
+{% endblock %}

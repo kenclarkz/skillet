@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>New meal plan</h2>
+    <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            {{ form.week_start.label }}
+            {{ form.week_start(class_='input', value=default) }}
+        </div>
+        <div class="form-group">
+            {{ form.title.label }}
+            {{ form.title(class_='input') }}
+        </div>
+        {{ form.submit(class_='btn btn-primary') }}
+        <a href="{{ url_for('plans.index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}
