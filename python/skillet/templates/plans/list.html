@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Plans — Skillet{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Week plans</h1>
+</div>
+{% if plans %}
+<div class="list-rows">
+  {% for plan in plans %}
+  <a class="card clickable card-pad spread" href="/plans/{{ plan.id }}">
+    <div>
+      <strong>{{ plan.title or format_week(plan.week_start) }}</strong>
+      <div class="small muted">{{ cookbook_names.get(plan.cookbook_id, 'Cookbook') }} · {{ format_date(plan.week_start) }}</div>
+    </div>
+    {{ m.status_badge(plan.status) }}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <h3>No plans yet</h3>
+  <p class="muted">Open a cookbook and start a vote week to plan meals together.</p>
+  <a class="btn btn-primary" href="/cookbooks">Go to cookbooks</a>
+</div>
+{% endif %}
+{% endblock %}

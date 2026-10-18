@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}Cookbooks — Skillet{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Cookbooks</h1>
+</div>
+
+{% if cookbooks %}
+<div class="grid-cards">
+  {% for cookbook in cookbooks %}
+  <a class="card clickable card-pad" href="/cookbooks/{{ cookbook.id }}">
+    <div class="spread" style="margin-bottom:0.3rem">
+      <h3 style="margin:0">{{ cookbook.name }}</h3>
+      {{ m.role_badge(cookbook.role) }}
+    </div>
+    {% if cookbook.description %}<p class="muted small" style="margin:0 0 0.5rem">{{ cookbook.description[:140] }}</p>{% endif %}
+    <p class="small muted" style="margin:0">
+      {{ cookbook.recipe_count }} recipe{{ 's' if cookbook.recipe_count != 1 }} ·
+      {{ 'Private' if cookbook.is_private else 'Shared publicly' }}
+    </p>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+  <h3>No cookbooks yet</h3>
+  <p class="muted">Create your first cookbook to start adding recipes.</p>
+</div>
+{% endif %}
+
+<details class="form-details card card-pad" style="margin-top:1.25rem">
+  <summary>➕ New cookbook</summary>
+  <form method="post" action="/cookbooks">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <div class="field">
+      <label for="name">Name</label>
+      <input class="input" type="text" id="name" name="name" required maxlength="120" placeholder="Family favorites">
+    </div>
+    <div class="field">
+      <label for="description">Description <span class="muted" style="font-weight:400">(optional)</span></label>
+      <textarea class="textarea" id="description" name="description" maxlength="500" style="min-height:70px"></textarea>
+    </div>
+    <div class="field checkbox-row">
+      <input type="checkbox" id="is_private" name="is_private" checked>
+      <label for="is_private">Private — only invited members can see it</label>
+    </div>
+    <button class="btn btn-primary" type="submit">Create cookbook</button>
+  </form>
+</details>
+{% endblock %}

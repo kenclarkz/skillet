@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Create account — Skillet{% endblock %}
+{% block content %}
+<div class="auth-wrap">
+  <div class="card card-pad">
+    <h1 style="font-size:1.4rem">Start your cookbook</h1>
+    <p class="muted small">Email and password — no social logins, no spam.</p>
+    {% if error %}<div class="form-error">{{ error }}</div>{% endif %}
+    {% if notice %}<div class="form-notice">{{ notice }}</div>{% endif %}
+    <form method="post" action="/signup">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="next" value="{{ next_url }}">
+      <div class="field">
+        <label for="display_name">Display name <span class="muted" style="font-weight:400">(optional)</span></label>
+        <input class="input" type="text" id="display_name" name="display_name" maxlength="80" autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input class="input" type="email" id="email" name="email" required autocomplete="email">
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input class="input" type="password" id="password" name="password" required minlength="6" autocomplete="new-password">
+      </div>
+      <button class="btn btn-primary btn-block" type="submit">Create account</button>
+    </form>
+  </div>
+  <p class="center small" style="margin-top:0.9rem">
+    Already have an account? <a href="/login{% if next_url %}?next={{ next_url }}{% endif %}">Sign in</a>
+  </p>
+</div>
+{% endblock %}

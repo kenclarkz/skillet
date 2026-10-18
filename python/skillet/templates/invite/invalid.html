@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Invite — Skillet{% endblock %}
+{% block content %}
+<div class="empty-state" style="margin-top:2rem;max-width:520px;margin-left:auto;margin-right:auto">
+  <h3>This invite isn’t valid</h3>
+  <p class="muted">It may have expired, been revoked, or already been used. Ask the cookbook owner for a fresh link.</p>
+  <a class="btn btn-secondary" href="/cookbooks">Go to your cookbooks</a>
+</div>
+{% endblock %}

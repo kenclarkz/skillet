@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Vote on this week’s meals — Skillet{% endblock %}
+{% block content %}
+<div style="max-width:640px;margin:0 auto" id="voter" data-token="{{ token }}">
+  <div class="center" style="padding:1.25rem 0 0.5rem">
+    <h1>Vote on this week’s meals</h1>
+    <p class="muted">Tap 👍 or 👎 for each dish — no account needed.</p>
+  </div>
+
+  <div class="card card-pad" style="margin-bottom:1rem">
+    <label for="voter-name">Your name</label>
+    <input class="input" type="text" id="voter-name" maxlength="60" placeholder="e.g. Alex" autocomplete="name">
+    <p class="small muted" style="margin:0.4rem 0 0">Stored on this device so your votes stay yours.</p>
+  </div>
+
+  <div id="ballot-status" class="small muted center" style="padding:1rem">Loading ballot…</div>
+  <div id="ballot-cookbook" class="center" hidden>
+    <h2 id="ballot-cookbook-name"></h2>
+    <p class="muted" id="ballot-plan-title"></p>
+  </div>
+  <div id="ballot-recipes" class="stack"></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>window.SKILLET_CSRF = {{ csrf_token | tojson }};</script>
+<script src="{{ url_for('static', filename='js/voter.js') }}" defer></script>
+{% endblock %}

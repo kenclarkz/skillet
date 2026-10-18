@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}Joined — Skillet{% endblock %}
+{% block content %}
+<div class="empty-state" style="margin-top:2rem;max-width:520px;margin-left:auto;margin-right:auto">
+  <h3>You’re in! 🎉</h3>
+  <p class="muted">You’ve been added to the cookbook.</p>
+  <a class="btn btn-primary" href="/cookbooks/{{ cookbook_id }}">Open cookbook</a>
+</div>
+{% endblock %}

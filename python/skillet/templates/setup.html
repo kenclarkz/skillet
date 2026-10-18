@@ -1,0 +1,13 @@
+<div class="setup-wrap">
+  <h1>🍳 Skillet needs a Supabase connection</h1>
+  <p class="muted">This app talks to a Supabase project for its database, auth, and photo storage. Set two environment variables and reload.</p>
+  <pre class="setup-pre">SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key</pre>
+  <ol class="steps">
+    <li>Create a free project at <a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a>.</li>
+    <li>Open the SQL Editor and run <code>supabase/migrations/20261017000001_init.sql</code> from this repo.</li>
+    <li>Copy the project URL and anon key from <em>Settings → API</em> into the environment (<code>.env</code> next to <code>wsgi.py</code> on PythonAnywhere, or the “Env vars” section of your web app).</li>
+    <li>Reload the web app and sign up.</li>
+  </ol>
+  <p class="muted small">See <code>python/README.md</code> for the full step-by-step PythonAnywhere guide.</p>
+</div>

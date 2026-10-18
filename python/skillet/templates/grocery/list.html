@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Groceries — Skillet{% endblock %}
+{% block content %}
+<div style="margin-bottom:0.9rem">
+  <a class="small muted" href="/plans/{{ plan.id }}">← {{ plan.title or format_week(plan.week_start) }}</a>
+</div>
+<div class="page-header">
+  <div>
+    <h1 style="margin-bottom:0.3rem">Grocery list</h1>
+    <p class="muted" style="margin:0">
+      {% if winning_count > 0 %}
+      Built from the {{ winning_count }} recipe{{ 's' if winning_count != 1 }} on the menu.
+      {% else %}
+      Built from every recipe on the ballot.
+      {% endif %}
+    </p>
+  </div>
+  <div class="actions no-print">
+    {% if editable and items %}
+    <form class="inline-form" method="post" action="/grocery/{{ plan.id }}/build">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <button class="btn btn-secondary btn-sm" type="submit">Rebuild list</button>
+    </form>
+    {% endif %}
+    <a class="btn btn-primary btn-sm" href="/grocery/{{ plan.id }}/shop">Shop</a>
+  </div>
+</div>
+
+{% if not list_id or not items %}
+<div class="empty-state">
+  <h3>No grocery list yet</h3>
+  <p class="muted">Merge the plan’s recipes into a single shopping list with pantry awareness.</p>
+  {% if editable %}
+  <form class="inline-form" method="post" action="/grocery/{{ plan.id }}/build">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+    <button class="btn btn-primary" type="submit">Build grocery list</button>
+  </form>
+  {% else %}
+  <a class="btn btn-secondary" href="/plans/{{ plan.id }}">Back to the plan</a>
+  {% endif %}
+</div>
+{% else %}
+<div id="grocery-editor" data-plan="{{ plan.id }}" data-list="{{ list_id }}">
+  <div class="card card-pad no-print" style="margin-bottom:0.9rem">
+    <div class="spread">
+      <div style="flex:1;min-width:180px">
+        <div class="spread small" style="margin-bottom:0.3rem">
+          <span><strong id="grocery-done">0</strong> of <strong id="grocery-active">{{ active_count }}</strong> done</span>
+          <button class="btn btn-ghost btn-sm" type="button" id="grocery-copy">Copy list</button>
+          <button class="btn btn-ghost btn-sm" type="button" id="grocery-csv">Download CSV</button>
+          <button class="btn btn-ghost btn-sm" type="button" onclick="window.print()">Print</button>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="grocery-progress" style="width:0%"></div></div>
+      </div>
+      <div class="filter-tabs" style="margin-left:0.9rem">
+        <button type="button" class="active" data-filter="all">All</button>
+        <button type="button" data-filter="todo">To buy</button>
+        <button type="button" data-filter="done">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" id="grocery-items">
+    {% for item in items %}
+    {% set excluded = item.excluded %}
+    <div class="grocery-item {{ 'checked' if item.checked }} {{ 'excluded' if excluded }}"
+         data-item
+         data-id="{{ item.id }}"
+         data-name="{{ item.name }}"
+         data-unit="{{ item.unit or '' }}"
+         data-qty="{{ item.qty if item.qty is not none else '' }}"
+         data-checked="{{ 'true' if item.checked else 'false' }}"
+         data-excluded="{{ 'true' if excluded else 'false' }}"
+         data-recipes="{{ (item.recipes or []) | map(attribute='title') | join(', ') }}">
+      {% if editable %}
+      <form class="inline-form js-toggle" method="post" action="/grocery/items/toggle">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <input type="hidden" name="list_id" value="{{ list_id }}">
+        <input type="hidden" name="item_id" value="{{ item.id }}">
+        <input type="hidden" name="plan_id" value="{{ plan.id }}">
+        <input type="hidden" name="field" value="checked">
+        <input type="hidden" name="value" value="{{ 'false' if item.checked else 'true' }}">
+        <input type="checkbox" {% if item.checked %}checked{% endif %} aria-label="Check {{ item.name }}">
+      </form>
+      {% else %}
+      <input type="checkbox" {% if item.checked %}checked{% endif %} disabled>
+      {% endif %}
+      <div class="g-main">
+        <div class="g-name">{{ qty_str(item.qty) }} {{ item.unit or '' }} {{ item.name }}</div>
+        {% if item.split_note %}<div class="g-meta">{{ item.split_note }}</div>{% endif %}
+        {% if item.recipes %}<div class="g-meta">for {{ item.recipes | map(attribute='title') | join(', ') }}</div>{% endif %}
+        {% if excluded %}<div class="g-meta">excluded{% if item.in_pantry %} — pantry staple{% endif %}</div>{% endif %}
+      </div>
+      {% if editable %}
+      <div class="g-actions no-print">
+        {% if not item.in_pantry %}
+        <form class="inline-form" method="post" action="/grocery/items/mark-pantry"
+              title="Always keep this on hand">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <input type="hidden" name="plan_id" value="{{ plan.id }}">
+          <input type="hidden" name="name" value="{{ item.name }}">
+          <button class="btn btn-ghost btn-sm" type="submit">🧂</button>
+        </form>
+        <form class="inline-form" method="post" action="/grocery/items/toggle">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="list_id" value="{{ list_id }}">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <input type="hidden" name="plan_id" value="{{ plan.id }}">
+          <input type="hidden" name="field" value="excluded">
+          <input type="hidden" name="value" value="{{ 'false' if excluded else 'true' }}">
+          <button class="btn btn-ghost btn-sm" type="submit" title="{{ 'Include' if excluded else 'Exclude' }}">{{ '↩' if excluded else '✕' }}</button>
+        </form>
+        {% endif %}
+        <form class="inline-form" method="post" action="/grocery/items/delete">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="item_id" value="{{ item.id }}">
+          <input type="hidden" name="plan_id" value="{{ plan.id }}">
+          <button class="btn btn-ghost btn-sm" type="submit" title="Delete item">🗑</button>
+        </form>
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if editable %}
+  <div class="card card-pad no-print" style="margin-top:0.9rem">
+    <h3>Add an item</h3>
+    <form method="post" action="/grocery/items/add">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <input type="hidden" name="list_id" value="{{ list_id }}">
+      <input type="hidden" name="plan_id" value="{{ plan.id }}">
+      <div class="row" style="align-items:flex-end">
+        <div style="flex:2;min-width:160px">
+          <label for="item-name">Item</label>
+          <input class="input" type="text" id="item-name" name="name" required maxlength="160" placeholder="sour cream">
+        </div>
+        <div style="flex:1;min-width:80px">
+          <label for="item-qty">Qty</label>
+          <input class="input" type="number" id="item-qty" name="qty" step="any" min="0" placeholder="1">
+        </div>
+        <div style="flex:1;min-width:90px">
+          <label for="item-unit">Unit</label>
+          <input class="input" type="text" id="item-unit" name="unit" maxlength="32" placeholder="cup">
+        </div>
+        <button class="btn btn-secondary" type="submit">Add</button>
+      </div>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/grocery.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block title %}{{ cookbook.name }} — Skillet{% endblock %}
+{% block content %}
+<div class="two-col">
+  <div class="stack">
+    <div>
+      <a class="small muted" href="/cookbooks">← Cookbooks</a>
+      <div class="page-header" style="margin-top:0.35rem">
+        <div>
+          <h1 style="margin-bottom:0.3rem">{{ cookbook.name }}</h1>
+          <div class="row">
+            {{ m.role_badge(role) }}
+            <span class="badge">{{ 'Private' if cookbook.is_private else 'Shared publicly' }}</span>
+          </div>
+          {% if cookbook.description %}<p class="muted" style="margin-top:0.5rem">{{ cookbook.description }}</p>{% endif %}
+        </div>
+        <div class="actions">
+          {% if editable %}
+          <a class="btn btn-secondary btn-sm" href="/import?cookbook={{ cookbook.id }}">Import recipe</a>
+          <a class="btn btn-primary btn-sm" href="/recipes/new?cookbook={{ cookbook.id }}">New recipe</a>
+          {% endif %}
+          {% if role %}
+          <a class="btn btn-ghost btn-sm" href="/cookbooks/{{ cookbook.id }}/members">Members</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <section>
+      <div class="spread" style="margin-bottom:0.6rem">
+        <h2 style="margin:0">Recipes <span class="badge">{{ recipes|length }}</span></h2>
+      </div>
+      {% if recipes %}
+      <div class="recipe-scroll">
+        {% for recipe in recipes %}{{ m.recipe_card(recipe) }}{% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <h3>No recipes yet</h3>
+        <p class="muted">Add one by hand or import it from any recipe page.</p>
+        {% if editable %}<a class="btn btn-primary" href="/recipes/new?cookbook={{ cookbook.id }}">New recipe</a>{% endif %}
+      </div>
+      {% endif %}
+    </section>
+
+    <section>
+      <h2>Week plans</h2>
+      {% if plans %}
+      <div class="list-rows">
+        {% for plan in plans %}
+        <a class="card clickable card-pad spread" href="/plans/{{ plan.id }}">
+          <div>
+            <strong>{{ plan.title or format_week(plan.week_start) }}</strong>
+            <div class="small muted">{{ format_date(plan.week_start) }}</div>
+          </div>
+          {{ m.status_badge(plan.status) }}
+        </a>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted small">No plans yet.</p>
+      {% endif %}
+
+      {% if editable %}
+      <details class="form-details card card-pad" style="margin-top:0.8rem">
+        <summary>➕ Start a vote week</summary>
+        <form method="post" action="/plans/create">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          <input type="hidden" name="cookbook_id" value="{{ cookbook.id }}">
+          <div class="field">
+            <label for="week_start">Week of</label>
+            <input class="input" type="date" id="week_start" name="week_start">
+          </div>
+          <div class="field">
+            <label for="title">Title <span class="muted" style="font-weight:400">(optional)</span></label>
+            <input class="input" type="text" id="title" name="title" maxlength="120" placeholder="Week of Taco Night">
+          </div>
+          <button class="btn btn-primary" type="submit">Start a vote week</button>
+        </form>
+      </details>
+      {% endif %}
+    </section>
+  </div>
+
+  <aside class="stack">
+    <div class="card card-pad">
+      <h3>At a glance</h3>
+      <p class="small muted" style="margin:0">
+        {{ recipes|length }} recipe{{ 's' if recipes|length != 1 }} ·
+        {{ plans|length }} plan{{ 's' if plans|length != 1 }} ·
+        role: {{ role or 'none' }}
+      </p>
+      {% if this_week %}
+      <p class="small" style="margin:0.5rem 0 0">
+        Current week: <a href="/plans/{{ this_week.id }}">{{ this_week.title or format_week(this_week.week_start) }}</a>
+      </p>
+      {% endif %}
+    </div>
+
+    {% if is_owner %}
+    <details class="form-details card card-pad">
+      <summary>⚙️ Cookbook settings</summary>
+      <form method="post" action="/cookbooks/{{ cookbook.id }}/update">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <div class="field">
+          <label for="name">Name</label>
+          <input class="input" type="text" id="name" name="name" required maxlength="120" value="{{ cookbook.name }}">
+        </div>
+        <div class="field">
+          <label for="description">Description</label>
+          <textarea class="textarea" id="description" name="description" maxlength="500" style="min-height:70px">{{ cookbook.description or '' }}</textarea>
+        </div>
+        <div class="field checkbox-row">
+          <input type="checkbox" id="is_private" name="is_private" {% if cookbook.is_private %}checked{% endif %}>
+          <label for="is_private">Private</label>
+        </div>
+        <button class="btn btn-secondary btn-sm" type="submit">Save changes</button>
+      </form>
+      <hr class="divider">
+      <form method="post" action="/cookbooks/{{ cookbook.id }}/delete"
+            onsubmit="return confirm('Delete this cookbook and everything in it?');">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+        <button class="btn btn-danger btn-sm" type="submit">Delete cookbook</button>
+      </form>
+    </details>
+    {% else %}
+    <div class="card card-pad">
+      <h3>Access</h3>
+      <p class="small muted" style="margin:0">You’re a <strong>{{ role }}</strong> of this cookbook.
+        {% if role == 'viewer' %}Ask an owner or editor to change your role.{% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+    <div class="card card-pad">
+      <h3>People</h3>
+      <a class="btn btn-secondary btn-sm" href="/cookbooks/{{ cookbook.id }}/members">Manage members &amp; invites</a>
+    </div>
+  </aside>
+</div>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Shop — Skillet{% endblock %}
+{% block content %}
+<div style="margin-bottom:0.9rem">
+  <a class="small muted" href="/grocery/{{ plan.id }}">← Grocery list</a>
+</div>
+<div class="page-header">
+  <div>
+    <h1 style="margin-bottom:0.3rem">Shopping</h1>
+    <p class="muted" style="margin:0">{{ item_count }} item{{ 's' if item_count != 1 }} to shop for.
+      {% if item_count == 0 %}Build the list first.{% endif %}</p>
+  </div>
+</div>
+
+<div id="shop-panel" class="stack" style="max-width:760px"
+     data-plan="{{ plan.id }}"
+     data-item-count="{{ item_count }}"
+     data-retailers='{{ retailers | tojson }}'>
+  <div class="card card-pad">
+    <h3>Send the list to…</h3>
+    <div class="row" style="margin-bottom:0.6rem">
+      {% for retailer in retailers %}
+      <label class="checkbox-row" style="margin-right:0.8rem">
+        <input type="radio" name="retailer" value="{{ retailer.id }}"
+               {% if loop.first %}checked{% endif %} class="retailer-radio">
+        {{ retailer.displayName }}
+        {% if retailer.configured %}<span class="badge badge-olive">configured</span>
+        {% else %}<span class="badge">search links</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    <button class="btn btn-primary" type="button" id="shop-run" {% if item_count == 0 %}disabled{% endif %}>Match products</button>
+    <p class="small muted" style="margin:0.6rem 0 0">
+      Skillet never fakes a cart. Without partner credentials you get real per-item search links;
+      with them, a cart is only reported when the retailer confirms one.
+    </p>
+  </div>
+
+  <div id="shop-status" class="small"></div>
+  <div id="shop-results" class="card card-pad" hidden></div>
+
+  <details class="form-details card card-pad">
+    <summary>⚙️ Retailer setup (optional)</summary>
+    <p class="small muted">Live search and cart creation need partner credentials in the environment:</p>
+    <pre class="setup-pre">WALMART_CONSUMER_ID=...
+WALMART_PRIVATE_KEY=...
+# WALMART_ACCESS_TOKEN=...   (optional, skips token exchange)
+# WALMART_CART_ENDPOINT=...  (only if your Walmart partner plan exposes cart creation)
+
+INSTACART_API_KEY=...
+# INSTACART_API_BASE=https://api.instacart.com/v2
+# INSTACART_SEARCH_PATH=/products
+# INSTACART_CART_PATH=/carts</pre>
+  </details>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>window.SKILLET_CSRF = {{ csrf_token | tojson }};</script>
+<script src="{{ url_for('static', filename='js/copy.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/shop.js') }}" defer></script>
+{% endblock %}

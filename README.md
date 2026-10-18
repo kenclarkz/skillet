@@ -102,10 +102,25 @@ Notes:
 
 ## Deploy
 
+### Vercel (Next.js app)
+
 1. Push the repo to GitHub/GitLab.
 2. Create a Supabase project, run the migration in SQL Editor.
 3. Deploy to Vercel (recommended). Set all required env vars from `.env.example`. If using a different host, set `NEXT_PUBLIC_APP_URL` to the public URL.
 4. After deploy, sign up and create a cookbook. If env vars are missing, a SetupNotice renders instead of broken flows.
+
+### PythonAnywhere (Flask port)
+
+No Node runtime? No problem — `python/` contains a complete **Flask** port of Skillet
+that runs on [PythonAnywhere](https://www.pythonanywhere.com) against the same Supabase
+project (same schema, RPCs, and storage bucket; only the web server changes).
+
+1. Create the Supabase project and run `supabase/migrations/20261017000001_init.sql` (same as above).
+2. Upload/clone the `python/` folder to PythonAnywhere, make a virtualenv, `pip install -r requirements.txt`.
+3. Create `.env` from `python/.env.example` with your Supabase URL/key, `APP_URL`, and `SECRET_KEY`.
+4. Add a manual-configuration web app, point its WSGI file at `python/wsgi.py`, map `/static/` to `python/skillet/static`, pick the virtualenv, and reload.
+
+The full step-by-step guide — including troubleshooting — is in [`python/README.md`](python/README.md).
 
 ## Architecture highlights
 
@@ -126,6 +141,7 @@ src/
   components/     # UI (recipe form/cards, voter, shop panel, QR, nav…)
   lib/            # auth, queries, ingredients, grocery/, import/, retailers/, supabase/
   proxy.ts        # middleware: session refresh + route guards
+python/           # Flask port for PythonAnywhere (same Supabase backend) — see python/README.md
 supabase/
   migrations/     # 20261017000001_init.sql (schema, RLS, RPCs, bucket)
 tests/            # vitest suites + PGlite migration harness
