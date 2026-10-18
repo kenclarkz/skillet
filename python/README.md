@@ -146,10 +146,17 @@ Then press **Reload** on the Web tab. Database migrations re-apply automatically
 
 ## Automated deploys from GitHub Actions
 
-The workflow in `.github/workflows/deploy-pythonanywhere.yml` tests, packages, and deploys
-the `python/` folder on every push to `main`. It uses PythonAnywhere's public API (no
-console needed): upload tarball → create a one-shot scheduled task → wait for the task's
-completion marker → reload the webapp → smoke-check the site.
+The workflow in `.github/workflows/deploy-pythonanywhere.yml.example` tests, packages, and
+deploys the `python/` folder on every push to `main`. It uses PythonAnywhere's public API
+(no console needed): upload tarball → create a one-shot scheduled task → wait for the
+task's completion marker → reload the webapp → smoke-check the site.
+
+To enable it, copy the example into place and push:
+
+```bash
+cp .github/workflows/deploy-pythonanywhere.yml.example .github/workflows/deploy-pythonanywhere.yml
+git add .github/workflows/deploy-pythonanywhere.yml && git commit -m "Enable PythonAnywhere deploy"
+```
 
 Set these repository secrets:
 

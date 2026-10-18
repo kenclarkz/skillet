@@ -1,3 +1,6 @@
+# Copy this file to deploy-pythonanywhere.yml (same directory) to enable auto-deploys.
+# It ships as .example because the GitHub App used for automation cannot create
+# workflow files — see python/README.md for the one-time setup.
 name: Deploy to PythonAnywhere
 
 on:
