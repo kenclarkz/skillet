@@ -41,8 +41,29 @@
             {{ form.description(class_='textarea') }}
         </div>
         <div class="form-group">
-            {{ form.instructions.label }}
-            {{ form.instructions(class_='textarea', rows=8, placeholder='One step per line') }}
+            <label>Steps</label>
+            <div id="step-list">
+                {% for row in step_rows %}
+                <div class="step-row">
+                    <span class="step-number">{{ loop.index }}</span>
+                    <div class="step-fields">
+                        <textarea name="step_text" class="textarea step-text" rows="2" placeholder="What happens in this step">{{ row.text }}</textarea>
+                        <div class="step-photo-controls">
+                            {% if row.photo_url %}
+                            <img class="step-thumb" src="{{ url_for('uploaded_file', filename=row.photo_url) }}" alt="Step photo">
+                            <label class="step-drop"><input type="checkbox" name="step_drop_photo" value="{{ row.sid or '' }}"> Remove photo</label>
+                            {% endif %}
+                            <input type="file" name="step_photo" class="input step-file" accept="image/*">
+                            <input type="hidden" name="step_id" value="{{ row.sid or '' }}">
+                            <input type="hidden" name="step_photo_url" value="{{ row.remote or '' }}">
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary btn-small remove-step" title="Remove this step">&times;</button>
+                </div>
+                {% endfor %}
+            </div>
+            <button type="button" class="btn btn-secondary" id="add-step">+ Add step</button>
+            <small>One step per box — you can attach a photo to any step</small>
         </div>
         <div class="form-group">
             {{ form.photo.label }}

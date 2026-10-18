@@ -175,26 +175,39 @@ def _servings(value) -> Optional[int]:
     return None
 
 
-def _flatten_instructions(value, out: Optional[list] = None) -> list:
+def _flatten_instructions(value, out: Optional[list] = None,
+                          images: Optional[list] = None) -> tuple:
+    """Return (texts, images) kept aligned — images get '' when a step has none."""
     out = out if out is not None else []
+    images = images if images is not None else []
     if isinstance(value, str):
         for line in re.split(r'\r?\n+', value):
             line = re.sub(r'^\d+[.)]\s*', '', line.strip())
             if line:
                 out.append(line)
-        return out
+                images.append('')
+        return out, images
     if isinstance(value, list):
         for item in value:
-            _flatten_instructions(item, out)
-        return out
+            _flatten_instructions(item, out, images)
+        return out, images
     if isinstance(value, dict):
         if isinstance(value.get('itemListElement'), list):
-            _flatten_instructions(value['itemListElement'], out)
+            _flatten_instructions(value['itemListElement'], out, images)
         elif isinstance(value.get('text'), str) and value['text'].strip():
+            img = value.get('image')
+            if isinstance(img, list) and img:
+                img = img[0]
+            if isinstance(img, dict):
+                img = img.get('url') or img.get('contentUrl')
+            if not (isinstance(img, str) and img.startswith('http')):
+                img = ''
             out.append(value['text'].strip())
+            images.append(img)
         elif value.get('name') and not value.get('@type'):
             out.append(str(value['name']).strip())
-    return out
+            images.append('')
+    return out, images
 
 
 def _as_recipe_node(node, depth=0) -> Optional[dict]:
@@ -275,7 +288,7 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
     draft = {
         'title': '', 'description': None, 'photo_url': None,
         'prep_minutes': None, 'cook_minutes': None, 'servings': 4,
-        'tags': [], 'ingredients': [], 'instructions': [],
+        'tags': [], 'ingredients': [], 'instructions': [], 'step_photos': [],
         'source_url': source_url, 'method': 'none',
     }
 
@@ -300,11 +313,13 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
             ing_lines = re.split(r'[\n\r]+', ing_lines)
         draft['ingredients'] = [str(i).strip() for i in ing_lines if str(i).strip()]
 
-        steps = _flatten_instructions(node.get('recipeInstructions'))
+        steps, step_images = _flatten_instructions(node.get('recipeInstructions'))
         # Older markup stores instructions as one blob of ingredient-like text.
         if steps and all(len(s) > 200 for s in steps[:1]) and len(steps) == 1:
             steps = re.split(r'(?<=\.)\s{2,}', steps[0])
+            step_images = [''] * len(steps)
         draft['instructions'] = steps[:60]
+        draft['step_photos'] = (step_images or [])[:60]
 
         image = node.get('image')
         if isinstance(image, list) and image:
@@ -321,6 +336,7 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
             draft['method'] = 'microdata'
             draft['ingredients'] = micro['ingredients']
             draft['instructions'] = micro['instructions']
+            draft['step_photos'] = [''] * len(micro['instructions'])
             draft['title'] = (_meta(html, ['og:title', 'twitter:title']) or '')[:200]
             draft['description'] = _meta(html, ['og:description', 'description'])
             draft['photo_url'] = _meta(html, ['og:image', 'twitter:image'])

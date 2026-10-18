@@ -41,6 +41,15 @@ class Recipe(db.Model):
 
     ingredients = db.relationship('Ingredient', backref='recipe', lazy=True, cascade='all, delete-orphan')
     plan_entries = db.relationship('PlanEntry', backref='recipe', lazy=True)
+    steps = db.relationship('RecipeStep', backref='recipe', lazy=True, cascade='all, delete-orphan',
+                            order_by='RecipeStep.position')
+
+class RecipeStep(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False, index=True)
+    position = db.Column(db.Integer, nullable=False, default=0)
+    text = db.Column(db.Text, nullable=False)
+    photo_path = db.Column(db.String(255), nullable=True)
 
 class Ingredient(db.Model):
     id = db.Column(db.Integer, primary_key=True)

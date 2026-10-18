@@ -345,13 +345,15 @@ def test_browser_save_flow_posts_to_correct_action(client, user, monkeypatch):
         mm = re.search(r'name="%s"[^>]*value="([^"]*)"' % name, body)
         return mm.group(1) if mm else ''
     ings = re.search(r'<textarea[^>]*name="ingredients"[^>]*>([\s\S]*?)</textarea>', body).group(1)
-    steps = re.search(r'<textarea[^>]*name="instructions"[^>]*>([\s\S]*?)</textarea>', body).group(1)
+    step_texts = re.findall(r'<textarea[^>]*name="step_text"[^>]*>([\s\S]*?)</textarea>', body)
     res = client.post(action, data={
         'csrf_token': field('csrf_token'),
         'title': field('title'), 'description': field('description'),
         'prep_minutes': field('prep_minutes'), 'cook_minutes': field('cook_minutes'),
         'servings': field('servings'), 'source_url': field('source_url'),
-        'tags': field('tags'), 'ingredients': ings, 'instructions': steps,
+        'tags': field('tags'), 'ingredients': ings,
+        'step_text': step_texts, 'step_id': [''] * len(step_texts),
+        'step_photo': [''] * len(step_texts),
         'photo_url': field('photo_url'),
     })
     assert res.status_code == 302
@@ -360,3 +362,69 @@ def test_browser_save_flow_posts_to_correct_action(client, user, monkeypatch):
 
     from app.models import Recipe
     assert Recipe.query.count() == 1
+
+
+STEP_IMAGE_PAGE = """
+<html><head><script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Recipe","name":"Photo Steps Cake",
+ "recipeIngredient":["1 cup flour"],
+ "recipeInstructions":[
+   {"@type":"HowToStep","text":"Mix the batter.","image":"https://example.org/s1.png"},
+   {"@type":"HowToStep","text":"Bake it."}
+ ]}
+</script></head><body></body></html>
+"""
+
+STEP_PNG = (b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00'
+            b'\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00'
+            b'\x00\x00IEND\xaeB`\x82')
+
+
+def test_step_images_collected_aligned_with_instructions():
+    draft = parse_recipe_html(STEP_IMAGE_PAGE, 'https://example.com/cake')
+    assert draft['instructions'] == ['Mix the batter.', 'Bake it.']
+    assert draft['step_photos'] == ['https://example.org/s1.png', '']
+
+
+def test_imported_step_photos_download_on_save(client, user, monkeypatch):
+    import app.lib.importer as importer
+
+    def fake_get(url, **kw):
+        if 'example.com' in url:
+            return FakeResponse(STEP_IMAGE_PAGE, url=url)
+        return FakeResponse(STEP_PNG, content_type='image/png', url=url)
+
+    monkeypatch.setattr(importer.requests, 'get', fake_get)
+    login(client)
+
+    res = client.post('/recipes/import', data={'url': 'https://example.com/cake'})
+    body = res.data.decode()
+    assert 'Photo Steps Cake' in body
+    assert 'name="step_photo_url"' in body
+
+    action = re.search(r'<form[^>]*action="([^"]+)"', body).group(1)
+    step_texts = re.findall(r'<textarea[^>]*name="step_text"[^>]*>([\s\S]*?)</textarea>', body)
+    remotes = re.findall(r'name="step_photo_url" value="([^"]*)"', body)
+    sids = re.findall(r'name="step_id" value="([^"]*)"', body)
+
+    def field(name):
+        m = re.search(r'name="%s"[^>]*value="([^"]*)"' % name, body)
+        return m.group(1) if m else ''
+
+    res = client.post(action, data={
+        'csrf_token': field('csrf_token'), 'title': field('title'),
+        'description': field('description'), 'prep_minutes': field('prep_minutes'),
+        'cook_minutes': field('cook_minutes'), 'servings': field('servings') or '4',
+        'source_url': field('source_url'), 'tags': field('tags'),
+        'ingredients': re.search(
+            r'<textarea[^>]*name="ingredients"[^>]*>([\s\S]*?)</textarea>', body).group(1),
+        'step_text': step_texts, 'step_id': sids, 'step_photo_url': remotes,
+        'step_photo': [''] * len(step_texts),
+    })
+    assert res.status_code == 302
+
+    from app.models import RecipeStep
+    steps = RecipeStep.query.order_by(RecipeStep.position).all()
+    assert [s.text for s in steps] == ['Mix the batter.', 'Bake it.']
+    assert steps[0].photo_path is not None   # downloaded from the source page
+    assert steps[1].photo_path is None       # this step had no image

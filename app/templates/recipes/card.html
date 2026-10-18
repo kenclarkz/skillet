@@ -17,6 +17,7 @@
         <p class="recipe-card-title">{{ r.title }}</p>
         <div class="recipe-card-meta">
             <span class="meta-chip">Serves {{ r.servings }}</span>
+            <span class="meta-chip">{{ r.ingredients | length }} ingredients</span>
             {% if r.tags %}
                 {% for tag in r.tags.split(',')[:2] %}
                     {% if tag.strip() %}
