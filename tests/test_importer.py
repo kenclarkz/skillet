@@ -268,3 +268,26 @@ def test_import_reports_failed_fetch(client, user, monkeypatch):
     res = client.post('/recipes/import', data={'url': 'https://example.com/down'}, follow_redirects=True)
     assert res.status_code == 200
     assert b'Could not fetch' in res.data
+
+
+def test_blocked_page_with_title_but_no_recipe_raises():
+    """JS-challenge / bot-block pages have a title but no recipe data."""
+    blocked = (
+        '<html><head><title>Simple Page</title>'
+        '<meta property="og:title" content="Just a moment..."></head>'
+        '<body>Enable JavaScript and cookies to continue</body></html>'
+    )
+    with pytest.raises(ImportFailed):
+        parse_recipe_html(blocked, 'https://example.com/challenge')
+
+
+def test_page_with_only_instructions_still_imports():
+    """Partial data is fine — the user can fill in the rest."""
+    partial = (
+        '<html><head><meta property="og:title" content="Half Recipe"></head>'
+        '<body><div itemscope itemtype="https://schema.org/Recipe">'
+        '<li itemprop="recipeInstructions">Stir it.</li></div></body></html>'
+    )
+    draft = parse_recipe_html(partial, 'https://example.com/partial')
+    assert draft['title'] == 'Half Recipe'
+    assert draft['instructions'] == ['Stir it.']

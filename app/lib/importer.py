@@ -59,7 +59,9 @@ def fetch_html(url: str) -> tuple:
     try:
         resp = requests.get(
             final_url,
-            headers={'User-Agent': USER_AGENT, 'Accept': 'text/html,application/xhtml+xml'},
+            headers={'User-Agent': USER_AGENT,
+                     'Accept': 'text/html,application/xhtml+xml',
+                     'Accept-Language': 'en-US,en;q=0.9'},
             timeout=TIMEOUT,
             allow_redirects=True,
             stream=True,
@@ -334,4 +336,11 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
 
     if not draft['title']:
         raise ImportFailed('No recipe found on that page — no title could be extracted.')
+    if not draft['ingredients'] and not draft['instructions']:
+        raise ImportFailed(
+            'We could not find a readable recipe on that page. Some sites (like '
+            'Allrecipes and BBC Good Food) block recipe readers or require '
+            'JavaScript, so there is nothing to import. Try a different recipe '
+            'URL from the same site, or add the recipe manually.'
+        )
     return draft
