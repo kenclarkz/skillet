@@ -10,6 +10,7 @@ A digital cookbook for families: recipes with photos, a weekly meal planner, and
 - User registration, login, logout, secure session cookies (HttpOnly, SameSite=Lax)
 - Personal recipe book per user — recipes are private to their owner
 - Add / edit / delete / view recipes with photo uploads
+- **Import from URL** — paste any recipe link and Skillet fills in the form (title, photo, times, servings, tags, ingredients, steps). Understands schema.org JSON-LD, microdata, and Open Graph pages; the source photo is downloaded and stored locally. Only public web URLs are fetched (private/localhost addresses are blocked)
 - Ingredients with quantities + units, instructions, tags, prep/cook times, servings
 - Horizontal scrollable recipe-card carousel with photos (original Skillet look)
 - Weekly meal planner: assign recipes to days of the week
