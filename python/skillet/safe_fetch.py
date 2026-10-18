@@ -18,7 +18,7 @@ BLOCKED_HOSTNAMES = {
 
 MAX_BYTES = 5 * 1024 * 1024  # 5 MB
 MAX_REDIRECTS = 5
-TIMEOUT_SECONDS = 12
+TIMEOUT_SECONDS = 20
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -28,6 +28,10 @@ USER_AGENT = (
 
 class FetchError(Exception):
     """User-facing fetch failure with a safe message."""
+
+    def __init__(self, message: str):
+        super().__init__(message)
+        self.message = message
 
 
 def _is_private_address(address: str) -> bool:

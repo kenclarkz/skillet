@@ -38,8 +38,8 @@ def test_retailers_api_is_public_json(client):
 
 def test_import_api_requires_sign_in(client):
     response = client.post("/api/import", json={"url": "https://example.com/recipe"})
-    assert response.status_code == 302  # page guard redirects to login
-    assert "/login" in response.location
+    assert response.status_code == 401  # JSON guard, never an HTML redirect
+    assert response.get_json()["error"]
 
 
 def test_vote_api_missing_token_is_a_clean_400(client):

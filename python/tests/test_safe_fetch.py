@@ -48,3 +48,10 @@ def test_error_messages_are_user_safe():
     message = str(excinfo.value)
     assert "not allowed" in message.lower()
     assert "169.254" not in message
+
+
+def test_fetch_error_exposes_message_attribute():
+    """The import API reads exc.message — it must exist on every FetchError."""
+    error = FetchError("The site responded with 403.")
+    assert error.message == "The site responded with 403."
+    assert str(error) == "The site responded with 403."

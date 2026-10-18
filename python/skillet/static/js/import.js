@@ -74,15 +74,32 @@
       },
       body: JSON.stringify({ url: url })
     }).then(function (res) {
-      return res.json().then(function (data) { return { ok: res.ok, status: res.status, data: data }; });
+      return res.text().then(function (text) {
+        var data = null;
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          data = null;
+        }
+        return { ok: res.ok, status: res.status, data: data };
+      });
     }).then(function (r) {
       submit.disabled = false;
       if (r.data && r.data.draft && (r.ok || r.status === 422)) {
         fillDraft(r.data.draft);
         statusEl.textContent = r.ok ? 'Recipe found — check the draft below.' : (r.data.error || 'Partial match — review carefully.');
         statusEl.style.color = r.ok ? '' : '#8a6212';
+      } else if (r.status === 401) {
+        statusEl.textContent = 'Please sign in again to import recipes.';
+        statusEl.style.color = '#a1301f';
+      } else if (r.data && r.data.error) {
+        statusEl.textContent = r.data.error;
+        statusEl.style.color = '#a1301f';
+      } else if (r.status >= 500) {
+        statusEl.textContent = 'The importer hit an unexpected error. Please try again in a moment.';
+        statusEl.style.color = '#a1301f';
       } else {
-        statusEl.textContent = (r.data && r.data.error) || 'Import failed.';
+        statusEl.textContent = 'Import failed — check your connection and try again.';
         statusEl.style.color = '#a1301f';
       }
     }).catch(function () {

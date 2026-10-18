@@ -24,7 +24,7 @@ def import_page():
 
 
 @bp.route("/api/import", methods=["POST"])
-@auth.require_user
+@auth.api_require_user
 def api_import():
     data = request.get_json(silent=True)
     if data is None:
