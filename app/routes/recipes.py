@@ -165,6 +165,12 @@ def delete(recipe_id):
 @login_required
 def import_url():
     form = ImportForm()
+    if form.is_submitted():
+        # Tolerate pasted URLs: surrounding spaces/quotes and a missing scheme.
+        raw = (form.url.data or '').strip().strip('\'"“”‘’')
+        if raw and '://' not in raw:
+            raw = 'https://' + raw
+        form.url.data = raw
     if form.validate_on_submit():
         try:
             final_url, html = fetch_html(form.url.data)

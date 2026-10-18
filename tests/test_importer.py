@@ -291,3 +291,31 @@ def test_page_with_only_instructions_still_imports():
     draft = parse_recipe_html(partial, 'https://example.com/partial')
     assert draft['title'] == 'Half Recipe'
     assert draft['instructions'] == ['Stir it.']
+
+
+def test_import_accepts_url_without_scheme(client, user, monkeypatch):
+    """Pasting 'www.site.com/recipe' must work — auto-prepend https://."""
+    _install_fetch(monkeypatch)
+    login(client)
+    res = client.post('/recipes/import', data={'url': 'www.example.com/lasagna'})
+    assert res.status_code == 200
+    assert 'Easy Classic Lasagne' in res.data.decode()
+
+
+def test_import_accepts_quoted_url_with_spaces(client, user, monkeypatch):
+    """Copy-pasted URLs often carry stray quotes and whitespace."""
+    _install_fetch(monkeypatch)
+    login(client)
+    res = client.post('/recipes/import', data={'url': '  "https://example.com/lasagna"  '})
+    assert res.status_code == 200
+    assert 'Easy Classic Lasagne' in res.data.decode()
+
+
+def test_import_shows_error_for_garbage_input(client, user, monkeypatch):
+    """A truly invalid URL must render the form with a visible error."""
+    login(client)
+    res = client.post('/recipes/import', data={'url': 'not a url at all'})
+    body = res.data.decode()
+    assert res.status_code == 200
+    assert 'Import a recipe from a URL' in body
+    assert 'alert alert-danger' in body

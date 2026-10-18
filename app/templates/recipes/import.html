@@ -10,6 +10,9 @@
         <div class="form-group">
             {{ form.url.label }}
             {{ form.url(class_='input', placeholder='https://example.com/best-lasagna') }}
+            {% for error in form.url.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endfor %}
         </div>
         {{ form.submit(class_='btn btn-primary') }}
         <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
