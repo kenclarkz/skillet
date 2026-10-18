@@ -66,6 +66,13 @@ def create_app(config=None):
     app.register_blueprint(grocery_bp)
     app.register_blueprint(main_bp)
 
+    # Auto-create tables on startup so a fresh checkout works without
+    # running `flask db-init` first. create_all only adds missing tables
+    # and never touches existing data.
+    from app.models import User, Recipe, Ingredient, MealPlan, PlanEntry, PantryItem  # noqa: F401
+    with app.app_context():
+        db.create_all()
+
     # CLI
     @app.cli.command('db-init')
     def db_init():

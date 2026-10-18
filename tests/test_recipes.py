@@ -159,3 +159,45 @@ def test_recipe_requires_login(client):
     res = client.get('/recipes')
     assert res.status_code == 302
     assert '/auth/login' in res.headers['Location']
+
+
+def test_fresh_database_works_without_db_init(tmp_path):
+    """Tables are auto-created on startup; signup + save must work with no db-init."""
+    from app import create_app
+    from app.models import Recipe, User
+
+    db_file = tmp_path / 'fresh.db'
+    application = create_app(config={
+        'TESTING': True,
+        'SECRET_KEY': 'fresh-secret',
+        'SQLALCHEMY_DATABASE_URI': f'sqlite:///{db_file}',
+        'UPLOAD_FOLDER': str(tmp_path / 'uploads'),
+        'WTF_CSRF_ENABLED': False,
+    })
+    with application.app_context():
+        assert db_file.exists()
+        assert User.query.count() == 0
+
+    with application.test_client() as client:
+        client.post('/auth/signup', data={
+            'email': 'fresh@example.com', 'display_name': 'Fresh',
+            'password': 'password123', 'password2': 'password123',
+        })
+        client.post('/auth/login', data={
+            'email': 'fresh@example.com', 'password': 'password123',
+        })
+        res = client.post('/recipes/new', data={
+            'title': 'Fresh Stew', 'description': '', 'prep_minutes': '5',
+            'cook_minutes': '15', 'servings': '3', 'source_url': '', 'tags': '',
+            'ingredients': '1 lb potatoes\n2 cups broth', 'instructions': 'Simmer.',
+        }, follow_redirects=True)
+        assert res.status_code == 200
+
+    with application.app_context():
+        assert Recipe.query.count() == 1
+        assert Recipe.query.first().title == 'Fresh Stew'
+
+    with application.test_client() as client:
+        client.post('/auth/login', data={'email': 'fresh@example.com', 'password': 'password123'})
+        listing = client.get('/recipes').data.decode()
+        assert 'Fresh Stew' in listing

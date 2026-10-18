@@ -26,8 +26,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env          # then edit SECRET_KEY
-flask db-init                 # creates instance/skillet.db
-flask run                     # http://127.0.0.1:5000
+flask run                     # http://127.0.0.1:5000 (DB tables are created automatically)
 ```
 
 Or `python app.py` for the built-in server (fine for local use).
@@ -87,7 +86,8 @@ application = create_app()
 
 ### 5. Initialize the database
 
-In the Bash console (with the virtualenv active):
+Tables are created automatically the first time the app starts, so you can skip this
+step. To create `instance/skillet.db` ahead of time, run (with the virtualenv active):
 
 ```bash
 cd ~/skillet-flask
