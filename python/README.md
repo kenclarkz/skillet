@@ -14,9 +14,10 @@ python/
   .env.example                # copy to .env
   migrations/                 # Alembic migrations (auto-applied at boot)
   scripts/
-    import_supabase.py        # one-way data import from a Supabase project
-    deploy_pythonanywhere.sh  # headless deploy (used by GitHub Actions)
-    pa_deploy_task.sh         # the scheduled task that unpacks + installs on PA
+    import_supabase.py                  # one-way data import from a Supabase project
+    deploy_pythonanywhere.sh            # headless deploy (used by GitHub Actions)
+    pa_deploy_task.sh                   # the scheduled task that unpacks + installs on PA
+    deploy-pythonanywhere.workflow.yml  # GitHub Actions workflow (copy into .github/workflows/)
   skillet/                    # the Flask app
   tests/                      # pytest suite
 ```
@@ -146,15 +147,17 @@ Then press **Reload** on the Web tab. Database migrations re-apply automatically
 
 ## Automated deploys from GitHub Actions
 
-The workflow in `.github/workflows/deploy-pythonanywhere.yml.example` tests, packages, and
+The workflow in `python/scripts/deploy-pythonanywhere.workflow.yml` tests, packages, and
 deploys the `python/` folder on every push to `main`. It uses PythonAnywhere's public API
 (no console needed): upload tarball → create a one-shot scheduled task → wait for the
 task's completion marker → reload the webapp → smoke-check the site.
 
-To enable it, copy the example into place and push:
+To enable it, copy the file into `.github/workflows/` and push (it ships outside that
+directory because the GitHub App used for this repo's automation cannot push workflow
+files):
 
 ```bash
-cp .github/workflows/deploy-pythonanywhere.yml.example .github/workflows/deploy-pythonanywhere.yml
+cp python/scripts/deploy-pythonanywhere.workflow.yml .github/workflows/deploy-pythonanywhere.yml
 git add .github/workflows/deploy-pythonanywhere.yml && git commit -m "Enable PythonAnywhere deploy"
 ```
 

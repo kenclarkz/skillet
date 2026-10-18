@@ -120,7 +120,7 @@ Supabase project needed — and can be migrated from one with `python/scripts/im
 2. Create `.env` from `python/.env.example` (`APP_URL` + `SECRET_KEY` are enough; the database lives in `~/skillet-data/`).
 3. Add a manual-configuration web app, point its WSGI file at `python/wsgi.py`, map `/static/` to `python/skillet/static`, pick the virtualenv, and reload. Migrations run automatically on first boot.
 4. (Optional) Import an existing Supabase project: `python scripts/import_supabase.py --download-photos`.
-5. (Optional) Enable auto-deploys: copy `.github/workflows/deploy-pythonanywhere.yml.example` to `.github/workflows/deploy-pythonanywhere.yml`, commit it, and add `PA_USERNAME` / `PA_API_TOKEN` / `PA_APP_NAME` repository secrets — the workflow then tests, uploads, and reloads on every push to `main`. (Shipped as `.example` because this repo's GitHub App lacks permission to create workflow files; the automation can't push the file for you.)
+5. (Optional) Enable auto-deploys: copy `python/scripts/deploy-pythonanywhere.workflow.yml` to `.github/workflows/deploy-pythonanywhere.yml`, commit it, and add `PA_USERNAME` / `PA_API_TOKEN` / `PA_APP_NAME` repository secrets — the workflow then tests, uploads, and reloads on every push to `main`. (Shipped under `python/scripts/` because this repo's GitHub App lacks permission to push files into `.github/workflows/`; the automation can't place the file for you.)
 
 The full step-by-step guide — including troubleshooting — is in [`python/README.md`](python/README.md).
 

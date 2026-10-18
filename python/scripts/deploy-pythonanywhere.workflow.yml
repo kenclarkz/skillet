@@ -1,6 +1,8 @@
-# Copy this file to deploy-pythonanywhere.yml (same directory) to enable auto-deploys.
-# It ships as .example because the GitHub App used for automation cannot create
-# workflow files — see python/README.md for the one-time setup.
+# GitHub Actions workflow for auto-deploying the Flask app to PythonAnywhere.
+# Copy this file to .github/workflows/deploy-pythonanywhere.yml and commit it
+# to enable auto-deploys (it lives outside .github/workflows/ in this repo
+# because the GitHub App used for automation cannot push workflow files).
+# See python/README.md for the one-time setup.
 name: Deploy to PythonAnywhere
 
 on:
