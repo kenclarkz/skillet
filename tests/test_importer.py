@@ -272,6 +272,70 @@ def test_import_reports_failed_fetch(client, user, monkeypatch):
     assert b'Could not fetch' in res.data
 
 
+def test_proxy_tunnel_403_gets_clear_message(client, user, monkeypatch):
+    """PythonAnywhere's proxy answers denied CONNECTs with a 403 tunnel
+    error. The user needs a hosting-limitation message, not a raw traceback."""
+    import requests
+    import app.lib.importer as importer
+
+    def fake_get(url, **kwargs):
+        raise requests.exceptions.ProxyError(
+            "HTTPSConnectionPool(host='example.com', port=443): "
+            "Max retries exceeded with url: / (Caused by ProxyError("
+            "'Cannot connect to proxy.', OSError('Tunnel connection "
+            "failed: 403 Forbidden')))"
+        )
+
+    monkeypatch.setattr(importer.requests, 'get', fake_get)
+    login(client)
+    res = client.post('/recipes/import', data={'url': 'https://example.com/r'}, follow_redirects=True)
+    body = res.data.decode()
+    assert res.status_code == 200
+    assert 'blocked the outbound request' in body
+    assert 'Tunnel connection failed' not in body
+
+
+def test_image_download_failure_still_saves_recipe(client, user, monkeypatch):
+    """A failed photo download must not lose the imported recipe."""
+    import requests
+    import app.lib.importer as importer
+
+    calls = {'n': 0}
+
+    def fake_get(url, **kwargs):
+        calls['n'] += 1
+        if calls['n'] == 1:
+            return FakeResponse(JSON_LD_PAGE, url=url)
+        raise requests.ConnectionError('image host unreachable')
+
+    monkeypatch.setattr(importer.requests, 'get', fake_get)
+    login(client)
+
+    client.post('/recipes/import', data={'url': 'https://example.com/lasagna'})
+
+    from app.models import Recipe
+
+    draft = parse_recipe_html(JSON_LD_PAGE, 'https://example.com/lasagna')
+    res = client.post('/recipes/new', data={
+        'title': draft['title'],
+        'description': draft['description'],
+        'prep_minutes': str(draft['prep_minutes']),
+        'cook_minutes': str(draft['cook_minutes']),
+        'servings': str(draft['servings']),
+        'source_url': draft['source_url'],
+        'tags': ', '.join(draft['tags']),
+        'ingredients': '\n'.join(draft['ingredients']),
+        'instructions': '\n'.join(draft['instructions']),
+        'photo_url': draft['photo_url'],
+    }, follow_redirects=True)
+    assert res.status_code == 200
+
+    recipe = Recipe.query.filter_by(title=draft['title']).first()
+    assert recipe is not None
+    assert recipe.photo_path is None
+    assert len(recipe.ingredients) == 4
+
+
 def test_blocked_page_with_title_but_no_recipe_raises():
     """JS-challenge / bot-block pages have a title but no recipe data."""
     blocked = (

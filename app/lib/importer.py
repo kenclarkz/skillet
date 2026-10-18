@@ -31,6 +31,29 @@ class ImportFailed(Exception):
     """Network or parse failure — the user sees this message verbatim."""
 
 
+BLOCKED_OUTBOUND_HINT = (
+    'This server blocked the outbound request. Free hosts like PythonAnywhere '
+    'restrict which external sites their apps may contact, so some recipe '
+    'sites cannot be imported from here. Try again later, import from a '
+    'different network, or add the recipe manually.'
+)
+
+
+def _request_failed(message: str, exc: requests.RequestException) -> ImportFailed:
+    """Translate a requests exception, calling out blocked outbound tunnels.
+
+    PythonAnywhere's proxy answers denied CONNECTs with
+    ``ProxyError ... Tunnel connection failed: 403 Forbidden``. That is a
+    hosting limitation, not a bad URL, so it gets its own clear message.
+    """
+    text = f'{exc}'
+    if (isinstance(exc, requests.exceptions.ProxyError)
+            or 'tunnel connection failed' in text.lower()
+            or ('403' in text and 'forbidden' in text.lower())):
+        return ImportFailed(f'{message} {BLOCKED_OUTBOUND_HINT}')
+    return ImportFailed(f'{message} {exc}')
+
+
 def assert_public_url(url: str) -> str:
     """Validate the URL and resolve its host, rejecting private targets."""
     parsed = urlparse(url.strip())
@@ -69,14 +92,14 @@ def fetch_html(url: str) -> tuple:
             stream=True,
         )
     except requests.RequestException as exc:
-        raise ImportFailed(f'Could not fetch that page: {exc}') from exc
+        raise _request_failed('Could not fetch that page.', exc) from exc
 
     # Redirects can land on a private host — re-check the final target.
     assert_public_url(resp.url)
     try:
         resp.raise_for_status()
     except requests.RequestException as exc:
-        raise ImportFailed(f'Could not fetch that page: {exc}') from exc
+        raise _request_failed('Could not fetch that page.', exc) from exc
 
     content_type = (resp.headers.get('Content-Type') or '').lower()
     if content_type and 'html' not in content_type and 'xml' not in content_type:
@@ -110,12 +133,12 @@ def download_image(url: str) -> tuple:
             stream=True,
         )
     except requests.RequestException as exc:
-        raise ImportFailed(f'Could not download the photo: {exc}') from exc
+        raise _request_failed('Could not download the photo.', exc) from exc
     assert_public_url(resp.url)
     try:
         resp.raise_for_status()
     except requests.RequestException as exc:
-        raise ImportFailed(f'Could not download the photo: {exc}') from exc
+        raise _request_failed('Could not download the photo.', exc) from exc
     assert_public_url(resp.url)
 
     content_type = (resp.headers.get('Content-Type') or '').lower()
