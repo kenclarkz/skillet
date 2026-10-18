@@ -1,4 +1,6 @@
 """URL recipe import: parsing, SSRF guards, and the import flow."""
+import re
+
 import pytest
 
 from app.lib.importer import (
@@ -319,3 +321,42 @@ def test_import_shows_error_for_garbage_input(client, user, monkeypatch):
     assert res.status_code == 200
     assert 'Import a recipe from a URL' in body
     assert 'alert alert-danger' in body
+
+
+def test_browser_save_flow_posts_to_correct_action(client, user, monkeypatch):
+    """Browser-faithful flow: after fetch, the form action must point at
+    /recipes/new. Without an explicit action the browser posts to the
+    current URL (/recipes/import) and the recipe is silently lost."""
+    _install_fetch(monkeypatch)
+    login(client)
+
+    # Step 1: fetch — response is the prefilled form rendered at /recipes/import
+    res = client.post('/recipes/import', data={'url': 'https://example.com/lasagna'})
+    body = res.data.decode()
+    assert 'Easy Classic Lasagne' in body
+
+    # Step 2: extract the form action exactly like a browser would
+    m = re.search(r'<form[^>]*action="([^"]+)"', body)
+    assert m, 'prefilled recipe form must declare an explicit action'
+    action = m.group(1)
+
+    # Step 3: submit the form fields to that action
+    def field(name):
+        mm = re.search(r'name="%s"[^>]*value="([^"]*)"' % name, body)
+        return mm.group(1) if mm else ''
+    ings = re.search(r'<textarea[^>]*name="ingredients"[^>]*>([\s\S]*?)</textarea>', body).group(1)
+    steps = re.search(r'<textarea[^>]*name="instructions"[^>]*>([\s\S]*?)</textarea>', body).group(1)
+    res = client.post(action, data={
+        'csrf_token': field('csrf_token'),
+        'title': field('title'), 'description': field('description'),
+        'prep_minutes': field('prep_minutes'), 'cook_minutes': field('cook_minutes'),
+        'servings': field('servings'), 'source_url': field('source_url'),
+        'tags': field('tags'), 'ingredients': ings, 'instructions': steps,
+        'photo_url': field('photo_url'),
+    })
+    assert res.status_code == 302
+    assert '/recipes/' in res.headers['Location']
+    assert 'import' not in res.headers['Location']
+
+    from app.models import Recipe
+    assert Recipe.query.count() == 1
