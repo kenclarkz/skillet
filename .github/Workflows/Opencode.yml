@@ -1,0 +1,49 @@
+name: opencode
+
+on:
+  issue_comment:
+    types: [created]
+
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: "What should OpenCode do?"
+        required: true
+        default: "Analyze this repository"
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  id-token: write
+
+jobs:
+  opencode:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Show event information
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Comment: ${{ github.event.comment.body }}"
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Configure Git identity
+        run: |
+          git config --global user.name "OpenCode"
+          git config --global user.email "opencode@users.noreply.github.com"
+
+      - name: Run OpenCode
+        uses: anomalyco/opencode/github@latest
+        with:
+          model: opencode/big-pickle
+          prompt: ${{ github.event_name == 'workflow_dispatch' && inputs.prompt || github.event.comment.body }}
+          use_github_token: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
