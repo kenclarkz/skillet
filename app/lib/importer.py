@@ -60,8 +60,10 @@ def fetch_html(url: str) -> tuple:
         resp = requests.get(
             final_url,
             headers={'User-Agent': USER_AGENT,
-                     'Accept': 'text/html,application/xhtml+xml',
-                     'Accept-Language': 'en-US,en;q=0.9'},
+                     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                     'Accept-Language': 'en-US,en;q=0.9',
+                     'Accept-Encoding': 'gzip, deflate, br',
+                     'Connection': 'keep-alive'},
             timeout=TIMEOUT,
             allow_redirects=True,
             stream=True,
@@ -71,6 +73,10 @@ def fetch_html(url: str) -> tuple:
 
     # Redirects can land on a private host — re-check the final target.
     assert_public_url(resp.url)
+    try:
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise ImportFailed(f'Could not fetch that page: {exc}') from exc
 
     content_type = (resp.headers.get('Content-Type') or '').lower()
     if content_type and 'html' not in content_type and 'xml' not in content_type:
@@ -94,8 +100,19 @@ def download_image(url: str) -> tuple:
     """Return (filename_extension, bytes) for a recipe photo."""
     final_url = assert_public_url(url)
     try:
-        resp = requests.get(final_url, headers={'User-Agent': USER_AGENT},
-                            timeout=TIMEOUT, allow_redirects=True, stream=True)
+        resp = requests.get(
+            final_url,
+            headers={'User-Agent': USER_AGENT,
+                     'Accept': 'image/*,*/*;q=0.8',
+                     'Accept-Language': 'en-US,en;q=0.9'},
+            timeout=TIMEOUT,
+            allow_redirects=True,
+            stream=True,
+        )
+    except requests.RequestException as exc:
+        raise ImportFailed(f'Could not download the photo: {exc}') from exc
+    assert_public_url(resp.url)
+    try:
         resp.raise_for_status()
     except requests.RequestException as exc:
         raise ImportFailed(f'Could not download the photo: {exc}') from exc
