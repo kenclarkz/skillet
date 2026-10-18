@@ -5,13 +5,15 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
+from sqlalchemy.exc import SQLAlchemyError
 
 from . import auth
 from .config import Config
+from .db import init_db
+from .errors import AppError
 from .qr import qr_svg
 from .queries import ingredients_to_lines
-from .supabase import SupabaseError
 
 
 def create_app() -> Flask:
@@ -22,6 +24,9 @@ def create_app() -> Flask:
     app.config["SESSION_COOKIE_HTTPONLY"] = True
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = False  # flipped per-request via set_cookie secure flag
+    app.config["PERMANENT_SESSION_LIFETIME"] = 60 * 60 * 24 * 30
+
+    init_db(app)
 
     app.before_request(auth.load_user)
     app.before_request(auth.validate_csrf)
@@ -29,16 +34,13 @@ def create_app() -> Flask:
 
     @app.context_processor
     def inject_globals() -> dict[str, Any]:
-        from flask import g
-
         cfg: Config = app.config["SKILLET"]
-        user = g.get("user")
-        display_name = session_display_name(user) if user else None
+        user = g_user()
         return {
             "cfg": cfg,
-            "is_configured": cfg.is_configured,
+            "is_configured": True,
             "current_user": user,
-            "display_name": display_name,
+            "display_name": user.get("display_name") if user else None,
             "csrf_token": auth.csrf_token(),
             "app_url": cfg.APP_URL,
             "public_photo_url": cfg.public_photo_url,
@@ -51,11 +53,27 @@ def create_app() -> Flask:
             "qr_svg": qr_svg,
         }
 
-    @app.errorhandler(SupabaseError)
-    def handle_supabase_error(exc: SupabaseError):
+    @app.route("/media/<path:photo_path>")
+    def media(photo_path: str):
+        """Serve uploaded recipe photos (replaces the Supabase Storage bucket)."""
+        return send_from_directory(str(cfg.UPLOAD_DIR), photo_path)
+
+    @app.errorhandler(AppError)
+    def handle_app_error(exc: AppError):
         if request.path.startswith("/api/"):
-            return jsonify({"error": exc.message}), exc.status or 400
-        return render_template("error.html", message=exc.message), exc.status or 400
+            return jsonify({"error": exc.message}), exc.status
+        return render_template("error.html", message=exc.message), exc.status
+
+    @app.errorhandler(SQLAlchemyError)
+    def handle_db_error(exc: SQLAlchemyError):
+        from .db import db
+
+        app.logger.exception("Database error on %s %s", request.method, request.path)
+        db.session.rollback()
+        message = "The database is busy — please try again."
+        if request.path.startswith("/api/"):
+            return jsonify({"error": message}), 503
+        return render_template("error.html", message=message), 503
 
     @app.errorhandler(404)
     def handle_not_found(_e):
@@ -74,17 +92,10 @@ def create_app() -> Flask:
     return app
 
 
-def session_display_name(user: dict[str, Any]) -> str | None:
+def g_user():
     from flask import g
 
-    client = auth.db()
-    try:
-        profile = client.table("profiles").select("display_name").eq("id", user["id"]).maybe_single().execute()
-        if profile and profile.get("display_name"):
-            return profile["display_name"]
-    except SupabaseError:
-        pass
-    return user.get("email")
+    return g.get("user")
 
 
 def format_date(value: Any, style: str = "long") -> str:

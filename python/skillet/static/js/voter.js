@@ -43,8 +43,8 @@
     if (recipe.photo_url && /^https?:\/\//.test(recipe.photo_url)) return recipe.photo_url;
     if (!recipe.photo_path) return null;
     if (/^https?:\/\//.test(recipe.photo_path)) return recipe.photo_path;
-    var base = (window.SKILLET_SUPABASE_URL || '').replace(/\/$/, '');
-    return base ? base + '/storage/v1/object/public/recipe-photos/' + recipe.photo_path : null;
+    var base = (window.SKILLET_MEDIA_BASE || '/media').replace(/\/$/, '');
+    return base + '/' + recipe.photo_path.replace(/^\//, '');
   }
 
   function renderBallot(ballot) {

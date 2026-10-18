@@ -29,13 +29,51 @@ def _get(name: str, default: str = "") -> str:
     return value.strip() if isinstance(value, str) else default
 
 
+def on_pythonanywhere() -> bool:
+    """True when running inside a PythonAnywhere web app or console."""
+    return bool(
+        os.environ.get("PYTHONANYWHERE_DOMAIN")
+        or os.environ.get("PYTHONANYWHERE_USER")
+        or os.environ.get("PYTHONANYWHERE_SITE")
+    )
+
+
+def resolve_data_dir() -> Path:
+    """Persistent data directory (database + uploaded photos).
+
+    On PythonAnywhere this defaults to ``~/skillet-data`` — outside the code
+    directory so deployments never touch user data. Locally it defaults to
+    ``python/instance``. Override with ``SKILLET_DATA_DIR``.
+    """
+    override = _get("SKILLET_DATA_DIR")
+    if override:
+        return Path(override).expanduser().resolve()
+    if on_pythonanywhere():
+        return (Path.home() / "skillet-data").resolve()
+    return (BASE_DIR / "instance").resolve()
+
+
+def resolve_database_uri(data_dir: Path) -> str:
+    """SQLite connection URI. Override with ``DATABASE_URL`` (a sqlite:///
+    URI or a bare filesystem path); otherwise ``<data_dir>/skillet.db``."""
+    raw = _get("DATABASE_URL") or _get("SKILLET_DB_PATH")
+    if raw:
+        if raw.startswith("sqlite:///"):
+            return raw
+        if "://" in raw:
+            return raw  # non-SQLite URL: let SQLAlchemy raise a clear error
+        return f"sqlite:///{Path(raw).expanduser().resolve()}"
+    return f"sqlite:///{data_dir / 'skillet.db'}"
+
+
 class Config:
-    """Reads the same Supabase/retailer settings as the Next.js app."""
+    """Reads database, session, and retailer settings from the environment."""
 
     def __init__(self) -> None:
         load_dotenv()
-        self.SUPABASE_URL = _get("SUPABASE_URL") or _get("NEXT_PUBLIC_SUPABASE_URL")
-        self.SUPABASE_ANON_KEY = _get("SUPABASE_ANON_KEY") or _get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+        self.DATA_DIR = resolve_data_dir()
+        self.DATABASE_URI = resolve_database_uri(self.DATA_DIR)
+        self.UPLOAD_DIR = Path(_get("SKILLET_UPLOAD_DIR") or (self.DATA_DIR / "uploads" / "recipe-photos"))
         self.APP_URL = _get("APP_URL") or _get("NEXT_PUBLIC_APP_URL") or "http://localhost:5000"
         self.APP_URL = self.APP_URL.rstrip("/")
 
@@ -51,18 +89,15 @@ class Config:
         self.INSTACART_CART_PATH = _get("INSTACART_CART_PATH") or "/carts"
 
         self.SECRET_KEY = _get("SECRET_KEY") or _get("FLASK_SECRET_KEY") or "skillet-dev-secret-change-me"
-        self.PHOTO_BUCKET = "recipe-photos"
         self.MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.SUPABASE_URL and self.SUPABASE_ANON_KEY)
+        return True
 
     def public_photo_url(self, path: str | None) -> str | None:
         if not path:
             return None
         if path.startswith("http://") or path.startswith("https://"):
             return path
-        if not self.SUPABASE_URL:
-            return None
-        return f"{self.SUPABASE_URL}/storage/v1/object/public/{self.PHOTO_BUCKET}/{path}"
+        return f"{self.APP_URL}/media/{path.lstrip('/')}"

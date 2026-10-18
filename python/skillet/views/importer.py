@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Blueprint, current_app, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 from .. import auth
 from ..import_parse import parse_recipe_html
@@ -15,8 +15,7 @@ bp = Blueprint("importer", __name__)
 @bp.route("/import")
 @auth.require_user
 def import_page():
-    client = auth.db()
-    options = editable_cookbooks(client, auth.user_id())
+    options = editable_cookbooks(auth.user_id())
     if not options:
         return render_template("import/none_available.html")
     requested = request.args.get("cookbook")

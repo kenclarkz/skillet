@@ -9,11 +9,8 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/skillet.css') }}">
 </head>
 <body>
-{% if not is_configured %}
-  {% include "setup.html" %}
-{% else %}
-  {% set hide_nav = request.path.startswith('/login') or request.path.startswith('/signup') or request.path.startswith('/vote/') or request.path.startswith('/invite/') %}
-  {% if not hide_nav %}
+{% set hide_nav = request.path.startswith('/login') or request.path.startswith('/signup') or request.path.startswith('/vote/') or request.path.startswith('/invite/') %}
+{% if not hide_nav %}
   <header class="topnav no-print">
     <div class="container topnav-inner">
       <a class="brand" href="{{ '/' if current_user else '/' }}">skillet<span>.</span></a>
@@ -54,6 +51,5 @@
   </nav>
   {% endif %}
   {% block scripts %}{% endblock %}
-{% endif %}
 </body>
 </html>

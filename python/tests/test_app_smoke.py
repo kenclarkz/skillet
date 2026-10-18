@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from skillet import create_app
 
 
@@ -81,18 +79,18 @@ def test_qr_endpoint_returns_svg(client):
     assert b"<svg" in response.data
 
 
-def test_unconfigured_app_shows_setup_notice(monkeypatch):
+def test_app_is_configured_with_sqlite_by_default(app, monkeypatch):
+    """The Flask app boots with a SQLite database and needs no Supabase env."""
     monkeypatch.delenv("SUPABASE_URL", raising=False)
     monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_URL", raising=False)
-    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
-    monkeypatch.delenv("NEXT_PUBLIC_SUPABASE_ANON_KEY", raising=False)
     application = create_app()
     application.config.update(TESTING=True)
-    unconfigured = application.test_client()
-    response = unconfigured.get("/")
+    configured = application.test_client()
+    response = configured.get("/")
     assert response.status_code == 200
-    assert b"Supabase" in response.data
-    # Protected routes send you to setup, not login.
-    redirect = unconfigured.get("/cookbooks")
+    assert b"Skillet" in response.data
+    assert b"needs a Supabase" not in response.data
+    # Protected routes still send you to login.
+    redirect = configured.get("/cookbooks")
     assert redirect.status_code == 302
-    assert redirect.location == "/"
+    assert redirect.location.startswith("/login")
