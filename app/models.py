@@ -41,6 +41,7 @@ class Recipe(db.Model):
 
     ingredients = db.relationship('Ingredient', backref='recipe', lazy=True, cascade='all, delete-orphan')
     plan_entries = db.relationship('PlanEntry', backref='recipe', lazy=True)
+    candidates = db.relationship('PlanCandidate', backref='recipe', lazy=True, cascade='all, delete-orphan')
     steps = db.relationship('RecipeStep', backref='recipe', lazy=True, cascade='all, delete-orphan',
                             order_by='RecipeStep.position')
 
@@ -67,6 +68,7 @@ class MealPlan(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     entries = db.relationship('PlanEntry', backref='plan', lazy=True, cascade='all, delete-orphan')
+    candidates = db.relationship('PlanCandidate', backref='plan', lazy=True, cascade='all, delete-orphan')
 
 class PlanEntry(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -76,6 +78,17 @@ class PlanEntry(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     __table_args__ = (db.UniqueConstraint('plan_id', 'recipe_id', 'day_of_week', name='unique_plan_day_recipe'),)
+
+class PlanCandidate(db.Model):
+    """A recipe put forward as a choice for a day, awaiting votes."""
+    id = db.Column(db.Integer, primary_key=True)
+    plan_id = db.Column(db.Integer, db.ForeignKey('meal_plan.id'), nullable=False, index=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False)
+    day_of_week = db.Column(db.Integer, nullable=False)  # 0=Mon..6=Sun
+    votes = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('plan_id', 'day_of_week', 'recipe_id', name='unique_plan_day_candidate'),)
 
 class PantryItem(db.Model):
     id = db.Column(db.Integer, primary_key=True)
