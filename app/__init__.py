@@ -32,6 +32,7 @@ def create_app(config=None):
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         UPLOAD_FOLDER=upload_folder,
         MAX_CONTENT_LENGTH=int(os.getenv('MAX_CONTENT_LENGTH', 5 * 1024 * 1024)),
+        MAX_PDF_BYTES=int(os.getenv('MAX_PDF_BYTES', 4 * 1024 * 1024)),
         SESSION_COOKIE_HTTPONLY=True,
         SESSION_COOKIE_SAMESITE='Lax',
     )

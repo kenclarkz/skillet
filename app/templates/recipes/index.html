@@ -4,6 +4,7 @@
     <h1>My recipes</h1>
     <div class="header-actions">
         <a href="{{ url_for('recipes.import_url') }}" class="btn btn-secondary">Import from URL</a>
+        <a href="{{ url_for('recipes.import_pdf') }}" class="btn btn-secondary">Import Recipe PDF</a>
         <a href="{{ url_for('recipes.new') }}" class="btn btn-primary">Add recipe</a>
     </div>
 </div>
@@ -20,6 +21,7 @@
     <p>Add your first recipe, or paste a link and we'll fill it in for you.</p>
     <div class="hero-actions" style="justify-content:center">
         <a href="{{ url_for('recipes.import_url') }}" class="btn btn-secondary">Import from URL</a>
+        <a href="{{ url_for('recipes.import_pdf') }}" class="btn btn-secondary">Import Recipe PDF</a>
         <a href="{{ url_for('recipes.new') }}" class="btn btn-primary">Add recipe</a>
     </div>
 </div>

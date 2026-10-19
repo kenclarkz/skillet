@@ -12,6 +12,7 @@ from app.models import Recipe, Ingredient, RecipeStep
 from app.lib.ingredients import parse_ingredient_text
 from app.lib.importer import (ImportBlocked, ImportFailed, download_image,
                               fetch_html, parse_recipe_html)
+from app.lib.pdf_importer import PdfImportError, extract_pdf, parse_recipe_text
 
 bp = Blueprint('recipes', __name__)
 
@@ -181,6 +182,35 @@ class ImportForm(FlaskForm):
     url = URLField('Recipe URL', validators=[DataRequired(), URL(require_tld=False), Length(max=2000)])
     submit = SubmitField('Fetch recipe')
 
+
+class PdfImportForm(FlaskForm):
+    pdf_file = FileField('Recipe PDF', validators=[Optional()])
+    paste_text = TextAreaField('Or paste the recipe text',
+                               validators=[Optional(), Length(max=400000)])
+    submit = SubmitField('Import recipe')
+
+
+def _preview_from_draft(draft):
+    """Prefill the recipe form with an imported draft for user review."""
+    recipe_form = RecipeForm()
+    recipe_form.title.data = draft['title']
+    recipe_form.description.data = draft['description']
+    recipe_form.prep_minutes.data = draft['prep_minutes']
+    recipe_form.cook_minutes.data = draft['cook_minutes']
+    recipe_form.servings.data = draft['servings']
+    recipe_form.source_url.data = draft.get('source_url') or ''
+    recipe_form.tags.data = ', '.join(draft.get('tags') or [])
+    recipe_form.ingredients.data = '\n'.join(draft['ingredients'])
+    recipe_form.instructions.data = '\n'.join(draft['instructions'])
+    recipe_form.photo_url.data = draft['photo_url'] or ''
+    photos = draft.get('step_photos') or []
+    rows = [{'text': t, 'photo_url': None, 'sid': '',
+             'remote': photos[i] if i < len(photos) else ''}
+            for i, t in enumerate(draft['instructions'])] or \
+        [{'text': '', 'photo_url': None, 'sid': '', 'remote': ''}]
+    return render_template('recipes/new.html', form=recipe_form, edit=False,
+                           imported=True, step_rows=rows)
+
 @bp.route('/recipes')
 @login_required
 def index():
@@ -316,22 +346,54 @@ def import_url():
             flash(str(exc), 'danger')
             return render_template('recipes/import.html', form=form)
 
-        recipe_form = RecipeForm()
-        recipe_form.title.data = draft['title']
-        recipe_form.description.data = draft['description']
-        recipe_form.prep_minutes.data = draft['prep_minutes']
-        recipe_form.cook_minutes.data = draft['cook_minutes']
-        recipe_form.servings.data = draft['servings']
-        recipe_form.source_url.data = draft['source_url']
-        recipe_form.tags.data = ', '.join(draft['tags'])
-        recipe_form.ingredients.data = '\n'.join(draft['ingredients'])
-        recipe_form.instructions.data = '\n'.join(draft['instructions'])
-        recipe_form.photo_url.data = draft['photo_url'] or ''
-        photos = draft.get('step_photos') or []
-        rows = [{'text': t, 'photo_url': None, 'sid': '',
-                 'remote': photos[i] if i < len(photos) else ''}
-                for i, t in enumerate(draft['instructions'])] or \
-            [{'text': '', 'photo_url': None, 'sid': '', 'remote': ''}]
-        return render_template('recipes/new.html', form=recipe_form, edit=False,
-                               imported=True, step_rows=rows)
+        return _preview_from_draft(draft)
     return render_template('recipes/import.html', form=form)
+
+
+@bp.route('/recipes/import-pdf', methods=['GET', 'POST'])
+@login_required
+def import_pdf():
+    form = PdfImportForm()
+    if form.validate_on_submit():
+        try:
+            draft = None
+            uploaded = form.pdf_file.data
+            if uploaded is not None and getattr(uploaded, 'filename', ''):
+                origin, data = _read_pdf_upload(uploaded)
+                text, hint = extract_pdf(data)
+                draft = parse_recipe_text(text, origin=origin, title_hint=hint)
+            elif (form.paste_text.data or '').strip():
+                draft = parse_recipe_text(form.paste_text.data)
+            else:
+                flash('Upload a recipe PDF or paste the recipe text to continue.', 'danger')
+
+            if draft is not None:
+                if draft.get('method') == 'pdf-raw':
+                    flash("We read the text but couldn't identify the recipe layout — "
+                          'review every field before saving.', 'warning')
+                return _preview_from_draft(draft)
+        except PdfImportError as exc:
+            flash(str(exc), 'danger')
+    return render_template('recipes/import_pdf.html', form=form)
+
+
+def _read_pdf_upload(file_storage):
+    """Validate an uploaded PDF in memory. Returns (origin_name, bytes)."""
+    filename = secure_filename(file_storage.filename or '')
+    if not filename.lower().endswith('.pdf'):
+        raise PdfImportError(
+            'Please upload a file with a .pdf extension. You can save any '
+            'recipe page as PDF from your browser (Print → Save as PDF).'
+        )
+    limit = current_app.config.get('MAX_PDF_BYTES', 4 * 1024 * 1024)
+    data = file_storage.stream.read(limit + 1)
+    if not data:
+        raise PdfImportError('That file is empty. Try re-saving the PDF, or paste the recipe text below.')
+    if len(data) > limit:
+        size = f'{limit // (1024 * 1024)} MB' if limit >= 1024 * 1024 else f'{max(limit // 1024, 1)} KB'
+        raise PdfImportError(
+            f'That PDF is larger than {size}. Upload just the recipe pages, '
+            'or paste the recipe text below.'
+        )
+    origin = os.path.splitext(filename)[0].replace('_', ' ').strip() or 'Imported recipe'
+    return origin, data

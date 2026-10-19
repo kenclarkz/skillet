@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card import-card">
+    <h2>Import Recipe PDF</h2>
+    <p class="text-muted">Upload a recipe PDF saved from HelloFresh or any recipe site.
+    We read the file on this server — the original page is never fetched — and pre-fill
+    an editable draft with the title, times, servings, ingredients, and steps.</p>
+    <form method="POST" enctype="multipart/form-data">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            {{ form.pdf_file.label }}
+            {{ form.pdf_file(class_='input', accept='application/pdf,.pdf') }}
+            {% for error in form.pdf_file.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        <div class="form-group">
+            {{ form.paste_text.label }}
+            {{ form.paste_text(class_='textarea', rows=8, placeholder='…or paste the recipe text here') }}
+            <small>Use this if the PDF is a scan or image-only file — copy the recipe
+            text and paste it instead.</small>
+            {% for error in form.paste_text.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {{ form.submit(class_='btn btn-primary') }}
+        <a href="{{ url_for('recipes.import_url') }}" class="btn btn-secondary">Import from URL</a>
+        <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+    <p class="import-note">PDFs are read locally with PyMuPDF (up to 4 MB, 64 pages).
+    No API keys or external services are involved, and you can correct everything
+    before saving.</p>
+</div>
+{% endblock %}

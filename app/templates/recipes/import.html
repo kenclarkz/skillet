@@ -19,5 +19,7 @@
     </form>
     <p class="import-note">The fetched page must be public. Private network addresses are blocked
     for safety. You can edit everything before saving.</p>
+    <p class="import-note">Have the recipe saved as a file instead?
+        <a href="{{ url_for('recipes.import_pdf') }}">Import Recipe PDF</a>.</p>
 </div>
 {% endblock %}

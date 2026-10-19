@@ -2,7 +2,13 @@
 {% block content %}
 <div class="card">
     {% if imported %}
-    <div class="import-banner">Imported from <a href="{{ form.source_url.data }}" target="_blank" rel="noopener">the source page</a>. Review everything, then save.</div>
+    <div class="import-banner">
+        {% if form.source_url.data %}
+        Imported from <a href="{{ form.source_url.data }}" target="_blank" rel="noopener">the source page</a>. Review everything, then save.
+        {% else %}
+        Imported recipe — review everything, then save.
+        {% endif %}
+    </div>
     {% endif %}
     <h2>{% if edit %}Edit recipe{% else %}New recipe{% endif %}</h2>
     <form method="POST" enctype="multipart/form-data" action="{{ url_for('recipes.new') }}">
