@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card import-card">
+    <h2>Import from your browser</h2>
+    <p class="text-muted">Some recipe sites (HelloFresh included) block servers from
+    fetching their pages. With browser import, your own browser reads the recipe from
+    a page <em>you</em> have open and sends the extracted data to Skillet — the server
+    never contacts the source site, and nothing is submitted to it either.</p>
+
+    <h3>Set up once</h3>
+    <ol class="import-steps">
+        <li>Right-click your bookmarks bar and choose <strong>Add page…</strong>
+            (or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+D).</li>
+        <li>Name the bookmark <strong>Skillet Import</strong>.</li>
+        <li>Paste the code below into the bookmark's <strong>URL / Address</strong> field.</li>
+    </ol>
+    <textarea id="bm-code" class="textarea" rows="4" readonly>{{ bookmarklet }}</textarea>
+    <button type="button" class="btn btn-secondary" id="copy-bm" onclick="(function(b){var t=document.getElementById('bm-code');t.focus();t.select();try{document.execCommand('copy');b.textContent='Copied!';}catch(e){}})(this)">Copy code</button>
+
+    <h3>Use it</h3>
+    <ol class="import-steps">
+        <li>Open a recipe page in your browser.</li>
+        <li>Click the <strong>Skillet Import</strong> bookmark.</li>
+        <li>Review the editable preview in the new tab, adjust anything, then save.</li>
+    </ol>
+
+    <p class="import-note">If the bookmark shows "could not find a recipe" (a few sites
+    restrict what bookmarks may run), save the page as a PDF and use
+    <a href="{{ url_for('recipes.import_pdf') }}">Import Recipe PDF</a>, or paste the text there.</p>
+    <a href="{{ url_for('recipes.import_url') }}" class="btn btn-secondary">Import from URL</a>
+    <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
+</div>
+{% endblock %}

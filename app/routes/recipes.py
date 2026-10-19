@@ -13,6 +13,8 @@ from app.lib.ingredients import parse_ingredient_text
 from app.lib.importer import (ImportBlocked, ImportFailed, download_image,
                               fetch_html, parse_recipe_html)
 from app.lib.pdf_importer import PdfImportError, extract_pdf, parse_recipe_text
+from app.lib.browser_import import (BrowserImportError, bookmarklet,
+                                    parse_payload)
 
 bp = Blueprint('recipes', __name__)
 
@@ -397,3 +399,25 @@ def _read_pdf_upload(file_storage):
         )
     origin = os.path.splitext(filename)[0].replace('_', ' ').strip() or 'Imported recipe'
     return origin, data
+
+
+@bp.route('/recipes/import-browser', methods=['GET'])
+@login_required
+def import_browser():
+    """Receive a recipe draft from the bookmarklet, or show install help.
+
+    The bookmarklet arrives as a top-level navigation, so the existing
+    login cookie rides along (SameSite=Lax allows top-level GETs). This
+    endpoint only renders — the save still goes through the normal
+    CSRF-protected POST /recipes/new flow.
+    """
+    url = url_for('recipes.import_browser', _external=True)
+    payload = request.args.get('data')
+    if payload is not None:
+        try:
+            draft = parse_payload(payload)
+        except BrowserImportError as exc:
+            flash(str(exc), 'danger')
+        else:
+            return _preview_from_draft(draft)
+    return render_template('recipes/import_browser.html', bookmarklet=bookmarklet(url))
