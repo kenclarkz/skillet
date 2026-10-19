@@ -363,7 +363,8 @@ def _render_imported(draft, step_refs, photo_ref):
     if not rows:
         rows = [{'text': '', 'photo_url': None, 'sid': '', 'remote': ''}]
     return render_template('recipes/new.html', form=recipe_form, edit=False,
-                           imported=True, step_rows=rows)
+                           imported=True, step_rows=rows,
+                           warnings=draft.get('warnings') or [])
 
 
 @bp.route('/recipes/import', methods=['GET', 'POST'])
@@ -394,7 +395,7 @@ def import_url():
 @bp.route('/recipes/import/pdf', methods=['GET', 'POST'])
 @login_required
 def import_pdf():
-    """Import a two-page HelloFresh-style recipe-card PDF."""
+    """Import a recipe-card PDF and show the editable preview."""
     form = PdfImportForm()
     if form.validate_on_submit():
         try:

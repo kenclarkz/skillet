@@ -23,9 +23,9 @@
 
 <div class="card import-card">
     <h2>Import a recipe PDF</h2>
-    <p class="text-muted">Upload a HelloFresh-style recipe card (the two-page kind with the
-    ingredient grid on the front and numbered steps on the back). We'll pull out the title,
-    photo, ingredients, steps, and step photos for you to review.</p>
+    <p class="text-muted">Upload a recipe-card PDF. Skillet reads the title, description,
+    times, servings, ingredients, numbered steps, and the photos, even when the card runs
+    over several pages or uses different numbers of ingredients and steps.</p>
     <form method="POST" action="{{ url_for('recipes.import_pdf') }}" enctype="multipart/form-data">
         {{ pdf_form.hidden_tag() }}
         <div class="form-group">
@@ -38,7 +38,7 @@
         {{ pdf_form.submit_pdf(class_='btn btn-primary') }}
         <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
     </form>
-    <p class="import-note">The PDF must use the two-page recipe-card layout. You can edit
-    everything before saving.</p>
+    <p class="import-note">Text-based PDFs are read directly. Scanned cards use OCR when
+    Tesseract is available. You can edit everything before saving.</p>
 </div>
 {% endblock %}
