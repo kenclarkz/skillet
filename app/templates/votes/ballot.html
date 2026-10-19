@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card import-card">
+    <h1>{{ plan.title or 'Weekly menu' }} — cast your vote</h1>
+    <p class="text-muted">Week starting {{ plan.week_start }}. No account needed — just pick a name, a color, and your favorite.</p>
+
+    <form method="POST" action="{{ url_for('votes.guest', token=request.view_args['token']) }}">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+            <label>Your name</label>
+            {{ form.voter_name(class_='input', placeholder='e.g. Alex', maxlength=60) }}
+            {% for error in form.voter_name.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="form-group">
+            <label>Pick a color</label>
+            <div class="color-options">
+                {% for hex_value, label in colors %}
+                <label class="color-option">
+                    <input type="radio" name="color" value="{{ hex_value }}"
+                           {% if form.color.data == hex_value or (not form.color.data and loop.first) %}checked{% endif %}>
+                    <span class="color-dot" style="background: {{ hex_value }}"></span>
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+            {% for error in form.color.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+
+        {% if suggestions %}
+        <div class="form-group">
+            <label>Vote for one of this week's suggestions</label>
+            {% for r in suggestions %}
+            <label class="color-option" style="border-radius: 0.75rem;">
+                <input type="radio" name="recipe_id" value="{{ r.id }}"
+                       {% if previous and previous.recipe_id == r.id %}checked{% endif %}>
+                {{ r.title }}
+            </label>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if others %}
+        <div class="form-group">
+            <label>Or suggest something else from the recipe list</label>
+            <select name="other_recipe_id" class="input">
+                <option value="">— No suggestion —</option>
+                {% for r in others %}
+                <option value="{{ r.id }}"
+                        {% if previous and previous.recipe_id == r.id %}selected{% endif %}>{{ r.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        {% if not suggestions and not others %}
+        <p class="text-muted">No recipes in the cookbook yet — nothing to vote on.</p>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary"
+                {% if not suggestions and not others %}disabled{% endif %}>Cast vote</button>
+    </form>
+
+    {% if show_results %}
+    <div class="mt-3">
+        <h3>Standings</h3>
+        {% if tally %}
+        <ul class="vote-tally">
+            {% for row in tally %}
+            <li>
+                <strong>{{ row.title }}</strong> — {{ row.count }} vote{{ 's' if row.count != 1 else '' }}
+                {% for name, color in row.voters %}
+                <span class="chip"><span class="chip-dot" style="background: {{ color }}"></span>{{ name }}</span>
+                {% endfor %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No votes yet — you're the first!</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

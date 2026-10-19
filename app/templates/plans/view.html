@@ -50,9 +50,46 @@
             {% set pe = entries.get(d) %}
             <p><a href="{{ url_for('recipes.view', recipe_id=pe.recipe_id) }}">{{ pe.recipe.title if pe.recipe else pe.recipe_id }}</a></p>
         {% else %}
-            <p class="text-muted">Unassigned</p>
+        <p class="text-muted">Unassigned</p>
         {% endif %}
     </div>
     {% endfor %}
+</div>
+
+<div class="card mt-3">
+    <h3>Guest voting</h3>
+    {% if share %}
+    <div class="qr-share">
+        <img src="{{ url_for('votes.qr', token=share.token) }}" alt="QR code for guest voting" width="180" height="180">
+        <div class="qr-info">
+            <p>Send friends this link — or let them scan the code. Guests pick a name, a color, and vote; no account needed.</p>
+            <input class="input" readonly value="{{ vote_url }}">
+            <form method="POST" action="{{ url_for('votes.disable_share', plan_id=plan.id) }}" style="margin-top:.75rem;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-secondary">Turn off voting</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <p>Let friends and family vote on this week's menu — they scan a QR code and choose without an account.</p>
+    <form method="POST" action="{{ url_for('votes.enable_share', plan_id=plan.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-primary">Enable guest voting (QR code)</button>
+    </form>
+    {% endif %}
+
+    {% if tally %}
+    <h4 style="margin-top:1.25rem;">Votes so far</h4>
+    <ul class="vote-tally">
+        {% for row in tally %}
+        <li>
+            <strong>{{ row.title }}</strong> — {{ row.count }} vote{{ 's' if row.count != 1 else '' }}
+            {% for name, color in row.voters %}
+            <span class="chip"><span class="chip-dot" style="background: {{ color }}"></span>{{ name }}</span>
+            {% endfor %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
 </div>
 {% endblock %}

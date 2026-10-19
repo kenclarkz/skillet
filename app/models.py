@@ -84,3 +84,25 @@ class PantryItem(db.Model):
     normalized_name = db.Column(db.String(120), nullable=False)
 
     __table_args__ = (db.UniqueConstraint('user_id', 'normalized_name', name='unique_user_pantry_norm'),)
+
+class PlanShare(db.Model):
+    """Secret token that opens guest voting for a weekly plan (QR code target)."""
+    id = db.Column(db.Integer, primary_key=True)
+    plan_id = db.Column(db.Integer, db.ForeignKey('meal_plan.id'), nullable=False,
+                        unique=True, index=True)
+    token = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    plan = db.relationship('MealPlan')
+
+class PlanVote(db.Model):
+    """One guest's vote for a recipe on a plan. Revoting replaces the previous row."""
+    id = db.Column(db.Integer, primary_key=True)
+    plan_id = db.Column(db.Integer, db.ForeignKey('meal_plan.id'), nullable=False, index=True)
+    recipe_id = db.Column(db.Integer, db.ForeignKey('recipe.id'), nullable=False, index=True)
+    voter_name = db.Column(db.String(60), nullable=False)
+    color = db.Column(db.String(9), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    plan = db.relationship('MealPlan', backref=db.backref('votes', lazy=True))
+    recipe = db.relationship('Recipe')

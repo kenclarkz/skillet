@@ -180,3 +180,16 @@ body { margin:0; background:var(--color-cream); color:var(--color-ink); font-fam
 .steps-view li { margin-bottom:1rem; }
 .step-text { margin:0 0 .5rem; }
 .step-photo { max-width:420px; width:100%; border-radius:14px; display:block; border:1px solid #e7dcc9; }
+
+/* ---- Guest voting (QR) ---- */
+.color-options { display:flex; flex-wrap:wrap; gap:.5rem; }
+.color-option { display:inline-flex; align-items:center; gap:.45rem; border:1px solid var(--color-sand-dark); border-radius:999px; padding:.4rem .8rem; cursor:pointer; background:white; }
+.color-option:has(input:checked) { border-color:var(--color-ink); background:var(--color-sand); }
+.color-dot { width:.9rem; height:.9rem; border-radius:50%; display:inline-block; flex:none; }
+.chip-dot { width:.65rem; height:.65rem; border-radius:50%; display:inline-block; flex:none; }
+.chip { display:inline-flex; align-items:center; gap:.35rem; cursor:default; }
+.vote-tally { list-style:none; padding:0; margin:0; }
+.vote-tally li { padding:.5rem 0; border-bottom:1px solid var(--color-sand-dark); }
+.qr-share { display:flex; gap:1.25rem; align-items:flex-start; flex-wrap:wrap; }
+.qr-share img { border:1px solid var(--color-sand-dark); border-radius:.75rem; background:white; }
+.qr-share .qr-info { flex:1; min-width:16rem; }

@@ -4,7 +4,8 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField
 from wtforms.validators import DataRequired, Optional
 from app.extensions import db
-from app.models import Recipe, MealPlan, PlanEntry
+from app.lib.votes import tally_votes
+from app.models import Recipe, MealPlan, PlanEntry, PlanShare
 from datetime import date, timedelta
 
 bp = Blueprint('plans', __name__)
@@ -52,7 +53,10 @@ def view(plan_id):
     recipes = Recipe.query.filter_by(user_id=current_user.id).order_by(Recipe.title).all()
     # build grid
     entries = {e.day_of_week: e for e in plan.entries}
-    return render_template('plans/view.html', plan=plan, recipes=recipes, days=DAYS, entries=entries)
+    share = PlanShare.query.filter_by(plan_id=plan.id).first()
+    vote_url = url_for('votes.guest', token=share.token, _external=True) if share else None
+    return render_template('plans/view.html', plan=plan, recipes=recipes, days=DAYS, entries=entries,
+                           share=share, vote_url=vote_url, tally=tally_votes(plan.id))
 
 @bp.route('/plans/<int:plan_id>/assign', methods=['POST'])
 @login_required

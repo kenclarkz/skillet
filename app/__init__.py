@@ -60,17 +60,20 @@ def create_app(config=None):
     from app.routes.recipes import bp as recipes_bp
     from app.routes.plans import bp as plans_bp
     from app.routes.grocery import bp as grocery_bp
+    from app.routes.votes import bp as votes_bp
     from app.routes.main import bp as main_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(recipes_bp)
     app.register_blueprint(plans_bp)
     app.register_blueprint(grocery_bp)
+    app.register_blueprint(votes_bp)
     app.register_blueprint(main_bp)
 
     # Auto-create tables on startup so a fresh checkout works without
     # running `flask db-init` first. create_all only adds missing tables
     # and never touches existing data.
-    from app.models import User, Recipe, Ingredient, MealPlan, PlanEntry, PantryItem  # noqa: F401
+    from app.models import (User, Recipe, Ingredient, MealPlan, PlanEntry, PantryItem,  # noqa: F401
+                            PlanShare, PlanVote)
     with app.app_context():
         db.create_all()
 
