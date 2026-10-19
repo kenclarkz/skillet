@@ -20,4 +20,25 @@
     <p class="import-note">The fetched page must be public. Private network addresses are blocked
     for safety. You can edit everything before saving.</p>
 </div>
+
+<div class="card import-card">
+    <h2>Import a recipe PDF</h2>
+    <p class="text-muted">Upload a HelloFresh-style recipe card (the two-page kind with the
+    ingredient grid on the front and numbered steps on the back). We'll pull out the title,
+    photo, ingredients, steps, and step photos for you to review.</p>
+    <form method="POST" action="{{ url_for('recipes.import_pdf') }}" enctype="multipart/form-data">
+        {{ pdf_form.hidden_tag() }}
+        <div class="form-group">
+            {{ pdf_form.pdf.label }}
+            {{ pdf_form.pdf(class_='input', accept='application/pdf') }}
+            {% for error in pdf_form.pdf.errors %}
+            <div class="alert alert-danger">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {{ pdf_form.submit_pdf(class_='btn btn-primary') }}
+        <a href="{{ url_for('recipes.index') }}" class="btn btn-secondary">Cancel</a>
+    </form>
+    <p class="import-note">The PDF must use the two-page recipe-card layout. You can edit
+    everything before saving.</p>
+</div>
 {% endblock %}

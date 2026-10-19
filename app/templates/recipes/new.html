@@ -2,7 +2,14 @@
 {% block content %}
 <div class="card">
     {% if imported %}
-    <div class="import-banner">Imported from <a href="{{ form.source_url.data }}" target="_blank" rel="noopener">the source page</a>. Review everything, then save.</div>
+    <div class="import-banner">
+        {% if form.source_url.data %}
+        Imported from <a href="{{ form.source_url.data }}" target="_blank" rel="noopener">the source page</a>.
+        {% else %}
+        Imported from a recipe PDF.
+        {% endif %}
+        Review everything, then save.
+    </div>
     {% endif %}
     <h2>{% if edit %}Edit recipe{% else %}New recipe{% endif %}</h2>
     <form method="POST" enctype="multipart/form-data" action="{{ url_for('recipes.new') }}">
@@ -51,7 +58,9 @@
                         <div class="step-photo-controls">
                             {% if row.photo_url %}
                             <img class="step-thumb" src="{{ url_for('uploaded_file', filename=row.photo_url) }}" alt="Step photo">
-                            <label class="step-drop"><input type="checkbox" name="step_drop_photo" value="{{ row.sid or '' }}"> Remove photo</label>
+                            {% if row.sid %}
+                            <label class="step-drop"><input type="checkbox" name="step_drop_photo" value="{{ row.sid }}"> Remove photo</label>
+                            {% endif %}
                             {% endif %}
                             <input type="file" name="step_photo" class="input step-file" accept="image/*">
                             <input type="hidden" name="step_id" value="{{ row.sid or '' }}">
@@ -68,6 +77,9 @@
         <div class="form-group">
             {{ form.photo.label }}
             {{ form.photo(class_='input') }}
+            {% if form.photo_url.data and not form.photo_url.data.startswith('http') %}
+            <img class="step-thumb" src="{{ url_for('uploaded_file', filename=form.photo_url.data) }}" alt="Recipe photo">
+            {% endif %}
             {% if edit and recipe.photo_path %}
             <small>Current: {{ recipe.photo_path }}</small>
             {% endif %}
