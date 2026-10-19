@@ -11,6 +11,16 @@
         Review everything, then save.
     </div>
     {% endif %}
+    {% if imported and warnings %}
+    <div class="alert alert-warning">
+        <strong>Please review these extraction notes:</strong>
+        <ul>
+            {% for warning in warnings %}
+            <li>{{ warning }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
     <h2>{% if edit %}Edit recipe{% else %}New recipe{% endif %}</h2>
     <form method="POST" enctype="multipart/form-data" action="{{ url_for('recipes.new') }}">
         {{ form.hidden_tag() }}

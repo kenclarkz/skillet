@@ -11,7 +11,7 @@ A digital cookbook for families: recipes with photos, a weekly meal planner, and
 - Personal recipe book per user — recipes are private to their owner
 - Add / edit / delete / view recipes with photo uploads
 - **Import from URL** — paste any recipe link and Skillet fills in the form (title, photo, times, servings, tags, ingredients, steps). Understands schema.org JSON-LD, microdata, and Open Graph pages; the source photo is downloaded and stored locally. Only public web URLs are fetched (private/localhost addresses are blocked)
-- **Import from PDF** — upload a two-page recipe card (the HelloFresh-style layout with the 2/4-person ingredient grid on the front and numbered steps on the back) and Skillet fills in the title, description, times, servings, ingredients (using the 2-person amounts), numbered steps, the hero photo, and each step's photo. The card is read with `pdfminer.six`
+- **Import from PDF** — upload a recipe-card PDF and Skillet fills in the title, description, times, servings, ingredients (using the 2-person amounts when a 2/4-person grid is present), numbered steps, the hero photo, and each step's photo. The parser works from layout and headings rather than fixed coordinates, so longer text, extra ingredients or steps, multi-page cards, and moved/resized photos all work. Text is read with `pdfminer.six`; scanned cards use OCR when the optional `pytesseract` package and Tesseract binary are installed. Anything missing or uncertain is shown as a warning in the editable preview
 - Ingredients with quantities + units, instructions, tags, prep/cook times, servings
 - Horizontal scrollable recipe-card carousel with photos (original Skillet look)
 - Weekly meal planner: assign recipes to days of the week
@@ -123,7 +123,8 @@ pytest
 Covers: auth flows, password hashing, CSRF enforcement, privacy isolation between
 users, recipe CRUD, image upload validation, pantry management, weekly planner
 assignment, grocery aggregation/unit merging, quantity formatting, and URL + PDF
-recipe import (the PDF tests build a synthetic recipe card at runtime).
+recipe import (the PDF tests build several synthetic cards at runtime, varying
+text length, ingredient/step counts, page breaks, and photo placement).
 
 ## Project layout
 
@@ -138,7 +139,7 @@ app/extensions.py          # db, login_manager, csrf
 app/routes/                # blueprints: main, auth, recipes, plans, grocery
 app/lib/ingredients.py     # ingredient line parsing + normalization
 app/lib/importer.py        # URL recipe fetch + parse (JSON-LD/microdata/OG)
-app/lib/pdf_importer.py    # two-page recipe-card PDF parser
+app/lib/pdf_importer.py    # layout-aware recipe-card PDF parser (+ optional OCR)
 app/lib/grocery.py         # unit conversion, merging, quantity formatting
 app/templates/             # Jinja2 templates (branding preserved)
 app/static/                # CSS/JS with the Skillet palette
