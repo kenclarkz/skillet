@@ -6,12 +6,14 @@ from wtforms import (StringField, TextAreaField, IntegerField, SubmitField,
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, URL
 from werkzeug.utils import secure_filename
 import os
+import uuid
 from datetime import datetime
 from app.extensions import db
 from app.models import Recipe, Ingredient, RecipeStep
 from app.lib.ingredients import parse_ingredient_text
 from app.lib.importer import (ImportBlocked, ImportFailed, download_image,
                               fetch_html, parse_recipe_html)
+from app.lib.pdf_importer import parse_recipe_pdf
 
 bp = Blueprint('recipes', __name__)
 
@@ -124,7 +126,7 @@ def save_steps(recipe, form, old_steps=None):
                 path = old.photo_path
                 reused.add(path)
             elif remote:
-                path = fetch_remote_photo(remote)
+                path = resolve_photo_reference(remote)
         plan.append((r['text'], upload, path))
 
     for old in old_steps:
@@ -162,6 +164,40 @@ def fetch_remote_photo(url):
         fh.write(blob)
     return name
 
+
+def _store_import_image(image):
+    """Write importer-provided (extension, bytes) into the media folder."""
+    if not image:
+        return None
+    ext, blob = image
+    name = f'{uuid.uuid4().hex}_imported.{ext}'
+    with open(os.path.join(current_app.config['UPLOAD_FOLDER'], name), 'wb') as fh:
+        fh.write(blob)
+    return name
+
+
+def _adopt_local_photo(name):
+    """Return a stored filename only when it is a plain, local file.
+
+    Imported drafts carry photo *references* until save time. PDF imports
+    write their images out immediately, so those references are already
+    local filenames. This guards against path traversal and missing files.
+    """
+    if not name or secure_filename(name) != name:
+        return None
+    if not os.path.isfile(os.path.join(current_app.config['UPLOAD_FOLDER'], name)):
+        return None
+    return name
+
+
+def resolve_photo_reference(ref):
+    """Turn a photo reference (remote URL or local upload name) into a name."""
+    if not ref:
+        return None
+    if ref.startswith(('http://', 'https://')):
+        return fetch_remote_photo(ref)
+    return _adopt_local_photo(ref)
+
 class RecipeForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired(), Length(max=200)])
     description = TextAreaField('Description', validators=[Optional()])
@@ -180,6 +216,11 @@ class RecipeForm(FlaskForm):
 class ImportForm(FlaskForm):
     url = URLField('Recipe URL', validators=[DataRequired(), URL(require_tld=False), Length(max=2000)])
     submit = SubmitField('Fetch recipe')
+
+
+class PdfImportForm(FlaskForm):
+    pdf = FileField('Recipe PDF', validators=[DataRequired()])
+    submit_pdf = SubmitField('Import PDF')
 
 @bp.route('/recipes')
 @login_required
@@ -209,7 +250,7 @@ def new():
             # photo: uploaded file wins, else download the imported one
             recipe.photo_path = store_uploaded_photo(form.photo.data)
             if not recipe.photo_path and form.photo_url.data:
-                recipe.photo_path = fetch_remote_photo(form.photo_url.data)
+                recipe.photo_path = resolve_photo_reference(form.photo_url.data)
             db.session.add(recipe)
             db.session.flush()
             save_steps(recipe, form)
@@ -264,7 +305,7 @@ def edit(recipe_id):
             if uploaded:
                 recipe.photo_path = uploaded
             elif form.photo_url.data:
-                downloaded = fetch_remote_photo(form.photo_url.data)
+                downloaded = resolve_photo_reference(form.photo_url.data)
                 if downloaded:
                     recipe.photo_path = downloaded
             recipe.updated_at = datetime.utcnow()
@@ -295,6 +336,36 @@ def delete(recipe_id):
     return redirect(url_for('recipes.index'))
 
 
+def _import_page(url_form=None, pdf_form=None):
+    return render_template('recipes/import.html',
+                           form=url_form or ImportForm(),
+                           pdf_form=pdf_form or PdfImportForm())
+
+
+def _render_imported(draft, step_refs, photo_ref):
+    """Prefill the recipe form with an imported draft for review."""
+    recipe_form = RecipeForm()
+    recipe_form.title.data = draft['title']
+    recipe_form.description.data = draft['description']
+    recipe_form.prep_minutes.data = draft['prep_minutes']
+    recipe_form.cook_minutes.data = draft['cook_minutes']
+    recipe_form.servings.data = draft['servings']
+    recipe_form.source_url.data = draft['source_url']
+    recipe_form.tags.data = ', '.join(draft['tags'])
+    recipe_form.ingredients.data = '\n'.join(draft['ingredients'])
+    recipe_form.instructions.data = '\n'.join(draft['instructions'])
+    recipe_form.photo_url.data = photo_ref or ''
+    rows = []
+    for i, text in enumerate(draft['instructions']):
+        ref = step_refs[i] if i < len(step_refs) else ''
+        local = ref if ref and not ref.startswith(('http://', 'https://')) else None
+        rows.append({'text': text, 'photo_url': local, 'sid': '', 'remote': ref})
+    if not rows:
+        rows = [{'text': '', 'photo_url': None, 'sid': '', 'remote': ''}]
+    return render_template('recipes/new.html', form=recipe_form, edit=False,
+                           imported=True, step_rows=rows)
+
+
 @bp.route('/recipes/import', methods=['GET', 'POST'])
 @login_required
 def import_url():
@@ -311,27 +382,30 @@ def import_url():
             draft = parse_recipe_html(html, final_url)
         except ImportBlocked as exc:
             flash(str(exc), 'danger')
-            return render_template('recipes/import.html', form=form)
+            return _import_page(url_form=form)
         except ImportFailed as exc:
             flash(str(exc), 'danger')
-            return render_template('recipes/import.html', form=form)
+            return _import_page(url_form=form)
+        return _render_imported(draft, draft.get('step_photos') or [],
+                                draft['photo_url'] or '')
+    return _import_page(url_form=form)
 
-        recipe_form = RecipeForm()
-        recipe_form.title.data = draft['title']
-        recipe_form.description.data = draft['description']
-        recipe_form.prep_minutes.data = draft['prep_minutes']
-        recipe_form.cook_minutes.data = draft['cook_minutes']
-        recipe_form.servings.data = draft['servings']
-        recipe_form.source_url.data = draft['source_url']
-        recipe_form.tags.data = ', '.join(draft['tags'])
-        recipe_form.ingredients.data = '\n'.join(draft['ingredients'])
-        recipe_form.instructions.data = '\n'.join(draft['instructions'])
-        recipe_form.photo_url.data = draft['photo_url'] or ''
-        photos = draft.get('step_photos') or []
-        rows = [{'text': t, 'photo_url': None, 'sid': '',
-                 'remote': photos[i] if i < len(photos) else ''}
-                for i, t in enumerate(draft['instructions'])] or \
-            [{'text': '', 'photo_url': None, 'sid': '', 'remote': ''}]
-        return render_template('recipes/new.html', form=recipe_form, edit=False,
-                               imported=True, step_rows=rows)
-    return render_template('recipes/import.html', form=form)
+
+@bp.route('/recipes/import/pdf', methods=['GET', 'POST'])
+@login_required
+def import_pdf():
+    """Import a two-page HelloFresh-style recipe-card PDF."""
+    form = PdfImportForm()
+    if form.validate_on_submit():
+        try:
+            draft = parse_recipe_pdf(form.pdf.data.read())
+        except ImportFailed as exc:
+            flash(str(exc), 'danger')
+            return _import_page(pdf_form=form)
+        photo_ref = _store_import_image(draft.get('photo'))
+        step_refs = [_store_import_image(photo)
+                     for photo in (draft.get('step_photos') or [])]
+        return _render_imported(draft, step_refs, photo_ref or draft['photo_url'] or '')
+    if form.is_submitted():
+        flash('Choose a PDF recipe card to import.', 'danger')
+    return _import_page(pdf_form=form)
