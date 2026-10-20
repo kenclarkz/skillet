@@ -11,7 +11,8 @@ import re
 from html import unescape
 from typing import Optional
 
-from app.lib.importer import _duration_minutes, _servings
+from app.lib.draft import better_servings, derive_tags, finalize_draft
+from app.lib.importer import _duration_minutes
 
 MAX_PDF_PAGES = 64
 MAX_TEXT_CHARS = 400_000
@@ -135,6 +136,7 @@ _STOP_RE = re.compile(
 _TIME_RE = re.compile(r'^(prep(?:aration)?|cook(?:ing)?)\s+time\b\s*[:\-–—]?\s*(.+)$', re.I)
 _TIME_RE2 = re.compile(r'^(prep(?:aration)?|cook(?:ing)?)\s*[:\-–—]\s*(.+)$', re.I)
 _YIELD_RE = re.compile(r'^(serves?|servings?|makes?|yields?)\b', re.I)
+_TAGS_RE = re.compile(r'^(?:tags?|categories|category|cuisine|courses?)\b\s*[:\-–—]\s*(.+)$', re.I)
 _PAGE_RE = re.compile(r'^(?:page\s*)?\d+$', re.I)
 _URL_RE = re.compile(r'^(?:https?://|www\.)\S+$', re.I)
 # A line starts a numbered step: "1. text", "2) text", "Step 3: text".
@@ -251,7 +253,7 @@ def parse_recipe_text(text: str, origin: str = '',
         'source_url': '', 'method': 'pdf',
     }
 
-    # --- metadata lines (times, yield) — anywhere in the document ----------
+    # --- metadata lines (times, yield, tags) — anywhere in the document ----
     for line in lines:
         m = _TIME_RE.match(line) or _TIME_RE2.match(line)
         if m:
@@ -259,9 +261,13 @@ def parse_recipe_text(text: str, origin: str = '',
             if draft[f'{key}_minutes'] is None:
                 draft[f'{key}_minutes'] = _parse_time(m.group(2))
         elif _YIELD_RE.match(line) and draft['servings'] == 4:
-            n = _servings(line)
+            n = better_servings(line)
             if n is not None:
                 draft['servings'] = n
+        else:
+            tm = _TAGS_RE.match(line)
+            if tm:
+                draft['tags'] = derive_tags(draft['tags'], tm.group(1))
 
     # --- section headers ---------------------------------------------------
     ing_i = step_i = stop_i = None
@@ -364,4 +370,4 @@ def parse_recipe_text(text: str, origin: str = '',
 
     if not draft['title']:
         draft['title'] = (origin or 'Imported recipe').strip()[:200]
-    return draft
+    return finalize_draft(draft)

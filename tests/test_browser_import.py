@@ -56,7 +56,7 @@ def test_parse_valid_payload_returns_shared_draft_shape():
     assert len(draft['instructions']) == 2
     assert draft['source_url'].startswith('https://www.hellofresh.com/')
     assert draft['method'] == 'browser'
-    assert draft['step_photos'] == []
+    assert draft['step_photos'] == ['', '']
 
 
 def test_parse_rejects_missing_title():

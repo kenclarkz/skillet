@@ -10,8 +10,8 @@ the draft arrives complete and is validated here before rendering.
 from __future__ import annotations
 
 import json
-import re
 
+from app.lib.draft import better_servings, derive_tags, finalize_draft, text_list
 from app.lib.pdf_importer import _parse_time
 
 MAX_PAYLOAD_BYTES = 100_000
@@ -27,20 +27,7 @@ class BrowserImportError(Exception):
 
 
 def _str_list(value, cap: int) -> list:
-    if isinstance(value, str):
-        items = value.splitlines()
-    elif isinstance(value, (list, tuple)):
-        items = value
-    else:
-        return []
-    out = []
-    for item in items:
-        if isinstance(item, dict):  # a raw HowToStep leaked through
-            item = item.get('text') or item.get('name') or ''
-        s = str(item).strip()
-        if s:
-            out.append(s)
-    return out[:cap]
+    return text_list(value, cap)
 
 
 def _minutes(value):
@@ -56,11 +43,8 @@ def _minutes(value):
 
 
 def _servings(value):
-    if value is None or isinstance(value, bool):
-        return 4
-    m = re.search(r'\d+', str(value))
-    n = int(m.group(0)) if m else None
-    return n if n is not None and 1 <= n <= 100 else 4
+    n = better_servings(value)
+    return n if n is not None else 4
 
 
 def _http_url(value, limit: int) -> str:
@@ -71,14 +55,7 @@ def _http_url(value, limit: int) -> str:
 
 
 def _tags(value) -> list:
-    if isinstance(value, str):
-        items = value.split(',')
-    elif isinstance(value, (list, tuple)):
-        items = value
-    else:
-        return []
-    tags = [str(t).strip()[:200] for t in items if str(t).strip()]
-    return tags[:MAX_TAGS]
+    return derive_tags(value)
 
 
 def parse_payload(raw: str) -> dict:
@@ -114,7 +91,14 @@ def parse_payload(raw: str) -> dict:
             'No recipe title was found on that page. The page may not publish '
             'recipe data — try Import Recipe PDF or paste the recipe text.'
         )
-    return {
+    photos = obj.get('step_photos')
+    if not isinstance(photos, (list, tuple)):
+        photos = []
+    step_photos = [
+        _http_url(photos[i], 2000) if i < len(photos) else ''
+        for i in range(len(_str_list(obj.get('instructions'), MAX_INSTRUCTIONS)))
+    ]
+    return finalize_draft({
         'title': title[:MAX_TITLE],
         'description': (str(obj.get('description') or '').strip()[:MAX_DESCRIPTION] or None),
         'photo_url': _http_url(obj.get('photo_url'), 2000) or None,
@@ -124,10 +108,10 @@ def parse_payload(raw: str) -> dict:
         'tags': _tags(obj.get('tags')),
         'ingredients': _str_list(obj.get('ingredients'), MAX_INGREDIENTS),
         'instructions': _str_list(obj.get('instructions'), MAX_INSTRUCTIONS),
-        'step_photos': [],
+        'step_photos': step_photos,
         'source_url': _http_url(obj.get('source_url'), 500),
         'method': 'browser',
-    }
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -155,14 +139,14 @@ _SCRIPT = r'''(function () {
   }
   function intOrNull(v) { if (v == null) return null; var m = String(v).match(/\d+/); return m ? +m[0] : null; }
   function text(v) { return (v == null ? '' : String(v)).replace(/\s+/g, ' ').trim(); }
-  function flatten(v, out) {
-    out = out || [];
+  function flatten(v, out, imgs) {
+    out = out || []; imgs = imgs || [];
     if (v == null) return out;
-    if (typeof v === 'string') { v.split(/\r?\n/).forEach(function (x) { x = x.replace(/^\s*\d+[.)]\s*/, '').trim(); if (x) out.push(x); }); return out; }
-    if (v instanceof Array) { v.forEach(function (x) { flatten(x, out); }); return out; }
-    if (v.itemListElement) { flatten(v.itemListElement, out); return out; }
-    if (v.text) { var s = text(v.text); if (s) out.push(s); }
-    else if (v.name && !v['@type']) { var n2 = text(v.name); if (n2) out.push(n2); }
+    if (typeof v === 'string') { v.split(/\r?\n/).forEach(function (x) { x = x.replace(/^\s*\d+[.)]\s*/, '').trim(); if (x) { out.push(x); imgs.push(''); } }); return out; }
+    if (v instanceof Array) { v.forEach(function (x) { flatten(x, out, imgs); }); return out; }
+    if (v.itemListElement) { flatten(v.itemListElement, out, imgs); return out; }
+    if (v.text) { var s = text(v.text); if (s) { out.push(s); imgs.push(imgVal(v.image) || ''); } }
+    else if (v.name && !v['@type']) { var n2 = text(v.name); if (n2) { out.push(n2); imgs.push(''); } }
     return out;
   }
   function imgVal(v) {
@@ -176,20 +160,21 @@ _SCRIPT = r'''(function () {
   for (i = 0; i < sc.length && !rec; i++) {
     try { rec = findRecipe(JSON.parse(sc[i].textContent.replace(/^\s*<!--/, '').replace(/-->\s*$/, ''))); } catch (e) {}
   }
-  var d = { title: '', description: '', prep_minutes: null, cook_minutes: null, servings: null, tags: [], ingredients: [], instructions: [], photo_url: null, source_url: location.href.split('#')[0] };
+  var d = { title: '', description: '', prep_minutes: null, cook_minutes: null, servings: null, tags: [], ingredients: [], instructions: [], step_photos: [], photo_url: null, source_url: location.href.split('#')[0] };
   if (rec) {
     d.title = text(rec.name);
     d.description = text(rec.description);
     d.prep_minutes = dur(rec.prepTime);
     d.cook_minutes = dur(rec.cookTime);
     d.servings = intOrNull(rec.recipeYield);
-    var tg = rec.recipeCategory || rec.recipeCuisine || [];
-    if (!(tg instanceof Array)) tg = [tg];
+    var tg = [].concat(rec.recipeCategory || [], rec.recipeCuisine || [], rec.keywords || []);
     d.tags = tg.map(text).filter(Boolean);
     var ing = rec.recipeIngredient || rec.ingredients || [];
     if (typeof ing === 'string') ing = ing.split(/\r?\n/);
     if (ing instanceof Array) d.ingredients = ing.map(text).filter(Boolean);
-    d.instructions = flatten(rec.recipeInstructions);
+    var stepImgs = [];
+    d.instructions = flatten(rec.recipeInstructions, [], stepImgs);
+    d.step_photos = stepImgs;
     d.photo_url = imgVal(rec.image);
   }
   var box = document.querySelector('[itemtype="https://schema.org/Recipe"],[itemtype="http://schema.org/Recipe"]');
@@ -198,7 +183,7 @@ _SCRIPT = r'''(function () {
     if (!d.title) { el = box.querySelector('[itemprop="name"]'); d.title = el ? text(el.textContent) : ''; }
     if (!d.description) { el = box.querySelector('[itemprop="description"]'); d.description = el ? text(el.textContent) : ''; }
     if (!d.ingredients.length) { d.ingredients = Array.prototype.slice.call(box.querySelectorAll('[itemprop="recipeIngredient"],[itemprop="ingredients"]')).map(function (e) { return text(e.textContent); }).filter(Boolean); }
-    if (!d.instructions.length) { d.instructions = flatten(Array.prototype.slice.call(box.querySelectorAll('[itemprop="recipeInstructions"]')).map(function (e) { return text(e.textContent); }).filter(Boolean)); }
+    if (!d.instructions.length) { d.instructions = flatten(Array.prototype.slice.call(box.querySelectorAll('[itemprop="recipeInstructions"]')).map(function (e) { return text(e.textContent); }).filter(Boolean)); d.step_photos = d.instructions.map(function () { return ''; }); }
     if (!d.prep_minutes) { el = box.querySelector('[itemprop="prepTime"]'); d.prep_minutes = dur(el ? (el.getAttribute('content') || el.textContent) : null); }
     if (!d.cook_minutes) { el = box.querySelector('[itemprop="cookTime"]'); d.cook_minutes = dur(el ? (el.getAttribute('content') || el.textContent) : null); }
     if (!d.servings) { el = box.querySelector('[itemprop="recipeYield"]'); d.servings = intOrNull(el ? (el.getAttribute('content') || el.textContent) : null); }
@@ -211,6 +196,7 @@ _SCRIPT = r'''(function () {
   d.description = (d.description || '').slice(0, 1000);
   d.ingredients = d.ingredients.slice(0, 80);
   d.instructions = d.instructions.slice(0, 60);
+  d.step_photos = (d.step_photos || []).slice(0, 60);
   d.tags = d.tags.slice(0, 6);
   if (!d.title || (!d.ingredients.length && !d.instructions.length)) {
     alert('Skillet could not find a recipe on this page. In Skillet, try Import Recipe PDF or paste the recipe text instead.');

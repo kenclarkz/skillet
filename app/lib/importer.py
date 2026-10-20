@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from app.lib.draft import better_servings, derive_tags, finalize_draft
+
 USER_AGENT = (
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/122.0 Safari/537.36'
@@ -202,16 +204,20 @@ def _duration_minutes(value) -> Optional[int]:
     return None
 
 
-def _servings(value) -> Optional[int]:
+def _image_url(value) -> Optional[str]:
+    """Pull a usable image URL out of a schema.org image/thumbnailUrl value."""
     if value is None:
         return None
-    if isinstance(value, (int, float)):
-        n = int(value)
-        return n if 1 <= n <= 100 else None
-    m = re.search(r'(\d+)', str(value))
-    if m:
-        n = int(m.group(1))
-        return n if 1 <= n <= 100 else None
+    if isinstance(value, list):
+        for item in value:
+            found = _image_url(item)
+            if found:
+                return found
+        return None
+    if isinstance(value, dict):
+        return _image_url(value.get('url') or value.get('contentUrl') or value.get('content'))
+    if isinstance(value, str) and value.startswith('http'):
+        return value
     return None
 
 
@@ -341,12 +347,12 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
         draft['description'] = (str(node.get('description') or '').strip()[:1000] or None)
         draft['prep_minutes'] = _duration_minutes(node.get('prepTime'))
         draft['cook_minutes'] = _duration_minutes(node.get('cookTime'))
-        draft['servings'] = _servings(node.get('recipeYield')) or 4
+        draft['servings'] = better_servings(node.get('recipeYield')) or 4
 
-        tags = node.get('recipeCategory') or node.get('recipeCuisine') or []
-        if isinstance(tags, str):
-            tags = [tags]
-        draft['tags'] = [str(t).strip() for t in tags if str(t).strip()][:6]
+        # category, cuisine and SEO keywords all become tags
+        draft['tags'] = derive_tags(node.get('recipeCategory'),
+                                    node.get('recipeCuisine'),
+                                    node.get('keywords'))
 
         ing_lines = node.get('recipeIngredient') or node.get('ingredients') or []
         if isinstance(ing_lines, str):
@@ -361,13 +367,8 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
         draft['instructions'] = steps[:60]
         draft['step_photos'] = (step_images or [])[:60]
 
-        image = node.get('image')
-        if isinstance(image, list) and image:
-            image = image[0]
-        if isinstance(image, dict):
-            image = image.get('url') or image.get('contentUrl')
-        if isinstance(image, str) and image.startswith('http'):
-            draft['photo_url'] = image
+        draft['photo_url'] = (_image_url(node.get('image'))
+                              or _image_url(node.get('thumbnailUrl')))
         break
 
     if draft['method'] == 'none':
@@ -380,7 +381,6 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
             draft['title'] = (_meta(html, ['og:title', 'twitter:title']) or '')[:200]
             draft['description'] = _meta(html, ['og:description', 'description'])
             draft['photo_url'] = _meta(html, ['og:image', 'twitter:image'])
-            draft['servings'] = 4
 
     if draft['method'] == 'none':
         draft['method'] = 'metadata'
@@ -399,4 +399,4 @@ def parse_recipe_html(html: str, source_url: str) -> dict:
             'JavaScript, so there is nothing to import. Try a different recipe '
             'URL from the same site, or add the recipe manually.'
         )
-    return draft
+    return finalize_draft(draft)
