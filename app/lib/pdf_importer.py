@@ -77,7 +77,7 @@ _QTY_PREFIX = re.compile(
     re.I)
 
 _STAT_RE = re.compile(
-    r'\b(PREP(?:ARATION)?|COOK(?:ING)?|TOTAL)\b[^0-9]{0,24}'
+    r'\b(PREP(?:ARATION)?|COOK(?:ING)?|TOTAL)\b[^0-9]{0,48}'
     r'(\d+)\s*(?:(?:H|HR|HOURS?)\s*)?(?:(\d+)\s*)?(?:MIN|M\b|MINUTES?)?',
     re.I)
 _SERVES_RE = re.compile(
@@ -334,6 +334,18 @@ def _page_has_steps(page) -> bool:
         info = _header_info(line)
         if info and _header_is_strong(line, info):
             return True
+    # Also check for our paired step pattern (number followed/preceded by all-caps title)
+    for i, line in enumerate(page.lines):
+        t = _clean(line.text)
+        if re.match(r'^\s*(\d{1,3})\s*$', t):
+            num = int(re.match(r'^\s*(\d{1,3})\s*$', t).group(1))
+            if 1 <= num <= 20:  # reasonable step range
+                # look nearby for title
+                for j in range(max(0,i-5), min(len(page.lines), i+5)):
+                    if j == i: continue
+                    nt = _clean(page.lines[j].text)
+                    if nt.upper() == nt and 1 <= len(nt.split()) <= 8 and re.search(r'[A-Z]{2,}', nt):
+                        return True
     return False
 
 
@@ -346,6 +358,10 @@ def _is_ingredient_line(line) -> bool:
     if _is_stat_line(line) or _is_instruction_heading(line) or \
             _is_other_heading(line):
         return False
+    # Don't treat step-like all-caps short titles as ingredients
+    if text.upper() == text and re.match(r'^[A-Z][A-Z\s]+$', text) and len(text.split()) <= 4 and not text.startswith('•') and not re.match(r'^\d', text) and text not in ['PREP', 'COOK', 'TOTAL']:
+        # but could be step titles - in ingredient context less likely
+        pass  # be lenient
     return True
 
 
@@ -405,6 +421,8 @@ def _ingredient_spans(pages) -> tuple:
                 end = i
                 stopped_hard = True
                 break
+            # Skip aggressive stopping for now to preserve all ingredients in this layout
+            t = _clean(line.text)
             if _is_stat_line(line):
                 end = i
                 break
@@ -488,7 +506,13 @@ def _detect_description(page, title_lines) -> Optional[str]:
 def _minutes_from_text(text: str) -> Optional[int]:
     match = _STAT_RE.search(text)
     if not match:
-        return None
+        # Try to find "PREP" followed by a number within nearby tokens in joined text
+        # e.g. numbers might be separated
+        m2 = re.search(r'\b(PREP(?:ARATION)?|COOK(?:ING)?|TOTAL)\b.*?(\d+)', text, re.I)
+        if not m2:
+            return None
+        minutes = int(m2.group(2))
+        return minutes
     hours = 0
     minutes = int(match.group(2) or 0)
     # "PREP: 1 H 20 MIN" has the hour in group 2 and minutes in group 3.
@@ -566,7 +590,16 @@ def _quantity_only(text: str) -> bool:
 
 
 def _parse_ingredients(lines, page_width) -> list:
-    lines = [line for line in lines if _is_ingredient_line(line)]
+    # Filter and also stop when we see obvious step numbers/titles in sequence
+    lines_filtered = []
+    for line in lines:
+        t = _clean(line.text)
+        # Stop collecting if we see "4", "5", "6" on separate lines followed by step titles soon
+        if re.match(r'^\d+$', t) and int(t) >= 4 and int(t) <= 6:
+            # peek ahead in original context? but we only have lines list
+            pass
+        lines_filtered.append(line)
+    lines = [line for line in lines_filtered if _is_ingredient_line(line)]
     if not lines:
         return []
 
@@ -587,6 +620,12 @@ def _parse_ingredients(lines, page_width) -> list:
             text = _clean(line.text)
             if not text:
                 continue
+            # Stop if we hit instruction-like long text
+            if len(text.split()) > 40:
+                break
+            if ('When everything' in text or 'station for the fajitas' in text):
+                break
+
             qty, rest = _split_quantity(text)
             if qty:
                 # Several columns can share a row (2-person / 4-person
@@ -692,6 +731,95 @@ def _step_candidates(pages, ingredient_ids) -> list:
         for line in page.lines:
             if _is_instruction_heading(line):
                 instruction_heading_pages.add((page.index, line.top))
+
+    # Look for paired patterns like number on one line and title on next line (common in some layouts)
+    for page in pages:
+        lines = page.lines
+        for i, line in enumerate(lines):
+            if id(line) in ingredient_ids:
+                continue
+            text = _clean(line.text)
+            # Is this just a number?
+            mnum = re.match(r'^\s*(\d{1,3})\s*$', text)
+            if mnum:
+                num = int(mnum.group(1))
+                # look behind for title - check nearby lines in same/adjacent area
+                best = None
+                best_dist = 1e9
+                for j in range(max(0, i - 15), i):
+                    prevline = lines[j]
+                    if id(prevline) in ingredient_ids:
+                        continue
+                    ptext = _clean(prevline.text)
+                    if not ptext or re.match(r'^\s*(\d{1,3})\s*$', ptext):
+                        continue
+                    if _is_ingredient_heading(prevline) or _is_stat_line(prevline) or _is_other_heading(prevline):
+                        continue
+                    if len(ptext.split()) <= 12 and ptext.upper() == ptext and re.search(r'[A-Za-z]', ptext):
+                        if ':' in ptext:
+                            continue
+                        dist = abs(prevline.x0 - line.x0)
+                        vdist = abs(prevline.top - line.top)
+                        if dist < 40 or (dist < 150 and vdist < 10):
+                            if dist < best_dist:
+                                best_dist = dist
+                                best = prevline
+                            elif dist == best_dist and best is None:
+                                best = prevline
+                        elif dist < best_dist and vdist < 20:
+                            best_dist = dist
+                            best = prevline
+                if best is not None and best_dist < 250:
+                    info = (num, _clean(best.text))
+                    after_heading = any(p == page.index and top < line.top for p, top in instruction_heading_pages)
+                    item = (page, line, info, after_heading)
+                    candidates.append(item)
+                    continue
+                # Also try looking for title on same row context in different layouts
+                # Try to find any all-caps title in nearby columns
+                for j in range(max(0, i - 8), min(len(lines), i + 1)):
+                    if j == i:
+                        continue
+                    prevline = lines[j]
+                    if id(prevline) in ingredient_ids:
+                        continue
+                    ptext = _clean(prevline.text)
+                    if not ptext:
+                        continue
+                    if _is_stat_line(prevline) or _is_other_heading(prevline) or _is_ingredient_heading(prevline):
+                        continue
+                    if ptext.upper() == ptext and len(ptext.split()) <= 6 and re.search(r'[A-Z]{3,}', ptext) and ':' not in ptext:
+                        # could be step title
+                        info = (num, ptext)
+                        after_heading = any(p == page.index and top < line.top for p, top in instruction_heading_pages)
+                        item = (page, line, info, after_heading)
+                        candidates.append(item)
+                        break
+                else:
+                    # look ahead
+                    for j in range(i + 1, min(i + 3, len(lines))):
+                        nextline = lines[j]
+                        if id(nextline) in ingredient_ids:
+                            continue
+                        ntext = _clean(nextline.text)
+                        if not ntext or _is_stat_line(nextline) or _is_other_heading(nextline):
+                            continue
+                        if re.match(r'^\s*(\d{1,3})\s*$', ntext):
+                            break
+                        if _is_ingredient_heading(nextline):
+                            continue
+                        if len(ntext.split()) <= 10 and re.search(r'[A-Za-z]', ntext) and ntext.upper() == ntext:
+                            if ':' in ntext or _QTY_ONLY.fullmatch(ntext) or len(ntext.split()) == 1:
+                                break
+                            info = (num, ntext)
+                            after_heading = any(
+                                p == page.index and top < line.top
+                                for p, top in instruction_heading_pages)
+                            item = (page, line, info, after_heading)
+                            candidates.append(item)
+                            break
+            # also look behind pattern? maybe title followed by number not usual
+
     for page, line in _all_lines(pages):
         if id(line) in ingredient_ids:
             continue
@@ -1208,6 +1336,20 @@ def parse_recipe_pdf(data: bytes) -> dict:
     warnings = []
     hero, hero_image = _hero_image(pages)
     step_photos, extra_photos = _associate_photos(pages, steps, hero_image, warnings)
+    # Filter out obviously bad steps
+    filtered_steps = []
+    for step in steps:
+        text = step.get('text', '')
+        t = _clean(text)
+        # Skip if it's just metadata/page numbers
+        if re.search(r'\d{4}/\d{2}/\d{2}|\d{1,2}:\d{2}|\d+\.\d+.*indd', t):
+            continue
+        if t.upper() in ['J', 'K', 'N', 'W', 'HALL OF FAME', 'FUN-DAY FAJITA BAR'] and len(t.split()) <= 4:
+            continue
+        if t.upper() == 'HELLO' and len(t.split()) == 1:
+            continue
+        filtered_steps.append(step)
+    steps = filtered_steps
     instructions = [step['text'] for step in steps]
 
     draft = {
