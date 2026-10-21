@@ -127,16 +127,25 @@ def _title_hint(doc) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 _ING_RE = re.compile(r'^(?:for\s+the\s+)?ingredients?\b(?!\s*\d)', re.I)
+# An ingredient group heading like "For the sauce:" / "For the marinade".
+_ING_GROUP_RE = re.compile(r'^for\s+the\s+.+?\s*[:\-–—]?\s*$', re.I)
 _STEP_RE = re.compile(
     r'^(?:instructions?|directions?|method|preparation|steps?|how to (?:make|cook|prepare)'
     r'|to prepare|recipe steps)\b(?!\s*\d)', re.I)
 _STOP_RE = re.compile(
     r'^(?:notes?|nutrition(?:al)?\s*(?:info(?:rmation)?|facts?)|tips?|serving suggestions?'
     r'|allergens?|storage|variations?|recipe notes|faqs?|for serving)\b', re.I)
-_TIME_RE = re.compile(r'^(prep(?:aration)?|cook(?:ing)?)\s+time\b\s*[:\-–—]?\s*(.+)$', re.I)
-_TIME_RE2 = re.compile(r'^(prep(?:aration)?|cook(?:ing)?)\s*[:\-–—]\s*(.+)$', re.I)
-_YIELD_RE = re.compile(r'^(serves?|servings?|makes?|yields?)\b', re.I)
-_TAGS_RE = re.compile(r'^(?:tags?|categories|category|cuisine|courses?)\b\s*[:\-–—]\s*(.+)$', re.I)
+# ``label: value`` or ``label value`` for a metadata line, anywhere on the
+# line. Colons are optional; a stray leading bullet/number is tolerated.
+# The value stops at the next known label so several labels can share a line.
+_TIME_RE = re.compile(r'\b(prep(?:aration)?|cook(?:ing)?|total|ready\s*in|active|inactive)'
+                      r'\s*(?:time)?\b\s*[:\-–—]?\s*(.+?)(?=\s*[•|\-–—]?\s*'
+                      r'(?:prep(?:aration)?|cook(?:ing)?|total|ready\s*in|active|inactive|serves?|servings?|makes?|yields?)\b|$)',
+                      re.I)
+_TIME_RE2 = re.compile(r'^\s*[•\-–—*\d.]*\s*(prep(?:aration)?|cook(?:ing)?|total)\b\s*[:\-–—]\s*(.+)$', re.I)
+_YIELD_RE = re.compile(r'\b(serves?|servings?|makes?|yields?)\b\s*[:\-–—]?\s*(.+)$', re.I)
+_TAGS_RE = re.compile(
+    r'\b(?:tags?|categories|category|cuisine|courses?)\b\s*[:\-–—]\s*(.+)$', re.I)
 _PAGE_RE = re.compile(r'^(?:page\s*)?\d+$', re.I)
 _URL_RE = re.compile(r'^(?:https?://|www\.)\S+$', re.I)
 # A line starts a numbered step: "1. text", "2) text", "Step 3: text".
@@ -189,10 +198,88 @@ def _looks_like_ingredient(line: str) -> bool:
     return bool(re.search(r'\bto taste\b', line, re.I))
 
 
+def _clean_ingredients(region: list) -> list:
+    """Ingredient lines from a section, dropping group headings and blanks.
+
+    Ingredient lists are often split by sub-headings like "For the sauce:"
+    or "For the topping". Those labels become group markers rather than
+    ingredients, and the actual amounts underneath are kept.
+    """
+    out = []
+    for raw in region:
+        line = _BULLET_RE.sub('', raw).strip()
+        if not line:
+            continue
+        if _ING_RE.match(line) or _STEP_RE.match(line) or _STOP_RE.match(line):
+            continue
+        # a short label ending in a colon is a group heading, not an ingredient
+        if line.endswith(':') and len(line) <= 40 and not _looks_like_ingredient(line):
+            continue
+        out.append(line)
+    return out[:80]
+
+
+def _leading_text_before_label(line: str) -> str:
+    """Text before the first metadata label on a line, if it looks like a title.
+
+    Handles PDFs that pack the title together with the first label, e.g.
+    "Muffins  Prep Time 10 min". Returns '' when there is no usable lead.
+    """
+    m = _TIME_RE.search(line)
+    if not m:
+        return ''
+    lead = line[:m.start()].strip(' \t-–—•|:')
+    if 2 <= len(lead) <= 120 and not lead[:1].isdigit():
+        return lead
+    return ''
+
+
 def _is_meta(line: str) -> bool:
     return bool(_ING_RE.match(line) or _STEP_RE.match(line) or _STOP_RE.match(line)
-                or _TIME_RE.match(line) or _TIME_RE2.match(line) or _YIELD_RE.match(line)
-                or _PAGE_RE.match(line))
+                or _TIME_RE.search(line) or _TIME_RE2.match(line) or _YIELD_RE.search(line)
+                or _TAGS_RE.search(line) or _PAGE_RE.match(line))
+
+
+def _scan_metadata(lines: list, draft: dict) -> None:
+    """Pull times, yield and tags out of every line, keyword-first.
+
+    Each line is searched for known labels ("prep time", "cook time",
+    "total time", "ready in", "serves", "category", "cuisine", "tags"...).
+    The value is whatever follows the label — with or without a colon — so
+    layouts like "Prep Time 15 min", "Total Time: 25 minutes" and several
+    labels packed on one line all work. A "total time"/"ready in" value
+    fills cook time when cook time is otherwise absent.
+    """
+    for line in lines:
+        matched = False
+        for tm in _TIME_RE.finditer(line):
+            label = tm.group(1).lower()
+            value = tm.group(2)
+            if label.startswith('prep'):
+                key = 'prep'
+            elif label.startswith(('cook', 'total', 'ready')):
+                key = 'cook'
+            else:  # active / inactive — not a cooking-time field
+                key = None
+            if key and draft[f'{key}_minutes'] is None:
+                n = _parse_time(value)
+                if n is not None:
+                    draft[f'{key}_minutes'] = n
+            matched = True
+
+        ym = _YIELD_RE.search(line)
+        if ym:
+            n = better_servings(ym.group(2) or ym.group(0))
+            if n is not None and draft['servings'] == 4:
+                draft['servings'] = n
+            matched = True
+
+        for tag in _TAGS_RE.finditer(line):
+            draft['tags'] = derive_tags(draft['tags'], tag.group(1))
+            matched = True
+
+        if matched:
+            continue
 
 
 def _steps_from_region(region: list) -> list:
@@ -254,27 +341,14 @@ def parse_recipe_text(text: str, origin: str = '',
     }
 
     # --- metadata lines (times, yield, tags) — anywhere in the document ----
-    for line in lines:
-        m = _TIME_RE.match(line) or _TIME_RE2.match(line)
-        if m:
-            key = 'prep' if m.group(1).lower().startswith('prep') else 'cook'
-            if draft[f'{key}_minutes'] is None:
-                draft[f'{key}_minutes'] = _parse_time(m.group(2))
-        elif _YIELD_RE.match(line) and draft['servings'] == 4:
-            n = better_servings(line)
-            if n is not None:
-                draft['servings'] = n
-        else:
-            tm = _TAGS_RE.match(line)
-            if tm:
-                draft['tags'] = derive_tags(draft['tags'], tm.group(1))
+    _scan_metadata(lines, draft)
 
     # --- section headers ---------------------------------------------------
     ing_i = step_i = stop_i = None
     for i, line in enumerate(lines):
         if _STOP_RE.match(line) and stop_i is None and (ing_i is not None or step_i is not None):
             stop_i = i
-        if ing_i is None and _ING_RE.match(line):
+        if ing_i is None and (_ING_RE.match(line) or _ING_GROUP_RE.match(line)):
             ing_i = i
         elif step_i is None and (ing_i is None or i > ing_i) and _STEP_RE.match(line):
             step_i = i
@@ -288,10 +362,16 @@ def parse_recipe_text(text: str, origin: str = '',
     for i, line in enumerate(lines[:12]):
         if draft['title']:
             break
-        if _is_meta(line) or _URL_RE.match(line) or '@' in line:
-            continue
         if (ing_i is not None and i > ing_i) or (step_i is not None and i > step_i):
             continue  # inside a section — content, not a title
+        if _is_meta(line) or _URL_RE.match(line) or '@' in line:
+            # a line that also starts with real text before its first
+            # metadata label ("Muffins  Prep Time 10 min") can still be a title
+            lead = _leading_text_before_label(line)
+            if lead and not draft['title']:
+                title_idx = i
+                draft['title'] = lead[:200]
+            continue
         title_idx = i
         draft['title'] = line[:200]
     if not draft['title']:
@@ -310,10 +390,7 @@ def parse_recipe_text(text: str, origin: str = '',
         for j in (step_i, stop_i):
             if j is not None and ing_i < j < end:
                 end = j
-        draft['ingredients'] = [
-            _BULLET_RE.sub('', ln).strip()
-            for ln in lines[ing_i + 1:end] if _BULLET_RE.sub('', ln).strip()
-        ][:80]
+        draft['ingredients'] = _clean_ingredients(lines[ing_i + 1:end])
 
         # description: a blurb between the title and the first section header
         first_section = min([j for j in (ing_i, step_i) if j is not None], default=len(lines))
@@ -344,9 +421,8 @@ def parse_recipe_text(text: str, origin: str = '',
         if numbered:
             steps = _steps_from_region(lines[numbered[0]:])
             _finish_draft(draft, steps)
-            if ing_i is None:
-                pre = [ln for i, ln in enumerate(lines[scan_from:numbered[0]])
-                       if not _is_meta(ln) and not _URL_RE.match(ln)]
+            if not draft['ingredients']:
+                pre = _clean_ingredients(lines[scan_from:numbered[0]])
                 draft['ingredients'] = [ln for ln in pre if _looks_like_ingredient(ln)][:80]
 
     # --- no recognizable structure: raw fallback ---------------------------

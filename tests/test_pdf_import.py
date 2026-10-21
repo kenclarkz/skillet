@@ -165,6 +165,79 @@ def test_parse_empty_text_raises():
 
 
 # ---------------------------------------------------------------------------
+# Keyword scanning — labels with or without colons, several per line
+# ---------------------------------------------------------------------------
+
+def test_parse_labels_without_colons():
+    draft = parse_recipe_text('Banana Bread Recipe\nPrep time 15 min\nCook time 55 min\n'
+                              'Serves 8\nINGREDIENTS\n3 ripe bananas\n1/3 cup butter\n'
+                              'INSTRUCTIONS\n1. Mash.\n2. Bake.')
+    assert draft['prep_minutes'] == 15
+    assert draft['cook_minutes'] == 55
+    assert draft['servings'] == 8
+    assert draft['ingredients'] == ['3 ripe bananas', '1/3 cup butter']
+
+
+def test_parse_total_time_fills_cook_time():
+    draft = parse_recipe_text('Pancakes\nTotal Time: 25 minutes\nMakes 12 pancakes\n'
+                              'Ingredients\n2 cups flour\nMethod\nWhisk and fry.')
+    assert draft['cook_minutes'] == 25
+    assert draft['servings'] == 12
+
+
+def test_parse_ready_in_as_time():
+    draft = parse_recipe_text('Stir Fry\nReady In: 30 minutes\nServes 3\n'
+                              'Ingredients\n1 lb veggies\nMethod\nStir fry it.')
+    assert draft['cook_minutes'] == 30
+    assert draft['servings'] == 3
+
+
+def test_parse_multiple_labels_on_one_line():
+    draft = parse_recipe_text('Muffins  Prep Time 10 min  Cook Time 20 min  Yield: 12 muffins\n'
+                              'Ingredients\n2 cups flour\nInstructions\nMix and bake.')
+    assert draft['title'] == 'Muffins'
+    assert draft['prep_minutes'] == 10
+    assert draft['cook_minutes'] == 20
+    assert draft['servings'] == 12
+
+
+def test_parse_category_and_cuisine_become_tags():
+    draft = parse_recipe_text('Garlic Shrimp\nPrep Time: 10 minutes\nCook Time: 8 minutes\n'
+                              'Servings: 4\nCategory: Seafood\nCuisine: American\n'
+                              'Ingredients:\n1 lb shrimp\n2 tbsp butter\nInstructions:\n1. Cook.')
+    assert 'Seafood' in draft['tags']
+    assert 'American' in draft['tags']
+    assert draft['prep_minutes'] == 10
+    assert draft['cook_minutes'] == 8
+
+
+def test_parse_yield_range_takes_upper_bound():
+    draft = parse_recipe_text('Chili\nServes 6 to 8\nIngredients\n2 lb beef\n'
+                              'Instructions\nCook it all together.')
+    assert draft['servings'] == 8
+
+
+# ---------------------------------------------------------------------------
+# Sectioned ingredient lists
+# ---------------------------------------------------------------------------
+
+def test_parse_sectioned_ingredients_without_top_header():
+    draft = parse_recipe_text('Beef Stew\nFor the stew:\n2 lb beef chuck\n3 carrots\n'
+                              'For the sauce:\n2 cups broth\nDirections\n'
+                              '1. Brown the beef.\n2. Simmer for two hours.')
+    assert draft['ingredients'] == ['2 lb beef chuck', '3 carrots', '2 cups broth']
+    assert draft['instructions'] == ['Brown the beef.', 'Simmer for two hours.']
+
+
+def test_parse_bulleted_metadata_lines():
+    draft = parse_recipe_text('Soup\n• Prep Time: 5 min\n• Cook Time: 25 min\n• Serves 4\n'
+                              'Ingredients\n1 onion\nDirections\nSimmer.')
+    assert draft['prep_minutes'] == 5
+    assert draft['cook_minutes'] == 25
+    assert draft['servings'] == 4
+
+
+# ---------------------------------------------------------------------------
 # Route: upload, validation, preview, saving
 # ---------------------------------------------------------------------------
 
